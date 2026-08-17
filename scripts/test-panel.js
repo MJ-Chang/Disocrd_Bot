@@ -61,6 +61,7 @@ const mockClient = {
     has(k) { return this.map.has(k); },
     set(k, v) { this.map.set(k, v); },
     clear() { this.map.clear(); },
+    values() { return this.map.values(); },
   },
   guilds: {
     cache: fakeCache([

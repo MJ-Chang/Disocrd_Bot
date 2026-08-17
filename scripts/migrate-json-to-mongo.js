@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { MongoClient } = require('mongodb');
+const { ensureDnsWorks } = require('../src/database/mongoStore');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const dataDir = path.join(__dirname, '..', 'data');
@@ -28,6 +29,7 @@ if (!uri) {
   }
 
   console.log(`🔌 連線 MongoDB（${uri.replace(/\/\/[^@]+@/, '//***@')}）…`);
+  await ensureDnsWorks(uri);
   const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10000 });
   await client.connect();
   const mongo = client.db(dbName);

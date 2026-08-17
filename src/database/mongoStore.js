@@ -1,3 +1,4 @@
+const dns = require('dns');
 const { MongoClient } = require('mongodb');
 const { logger } = require('../utils/logger');
 
@@ -144,6 +145,35 @@ class MongoCollection {
   }
 }
 
+/** 從 mongodb+srv:// URI 取出主機名 */
+function extractSrvHost(uri) {
+  const m = /^mongodb\+srv:\/\/[^@]*@([^/]+)/.exec(uri) || /^mongodb\+srv:\/\/([^/]+)/.exec(uri);
+  return m ? m[1] : null;
+}
+
+/**
+ * Windows 上 Node.js 的 c-ares 解析器可能無法用系統 DNS 查詢 SRV 紀錄
+ * （ECONNREFUSED），導致 mongodb+srv:// 連線失敗。此函式在連線前先測試 SRV，
+ * 失敗則改用公共 DNS（8.8.8.8 / 1.1.1.1）重試。
+ */
+async function ensureDnsWorks(uri) {
+  if (!uri || !uri.startsWith('mongodb+srv://')) return;
+  const host = extractSrvHost(uri);
+  if (!host) return;
+  try {
+    await dns.promises.resolveSrv(`_mongodb._tcp.${host}`);
+  } catch (e) {
+    logger.warn('db', `系統 DNS 無法查詢 SRV（${e.code}），改用 8.8.8.8 / 1.1.1.1`);
+    try {
+      dns.setServers(['8.8.8.8', '1.1.1.1']);
+      await dns.promises.resolveSrv(`_mongodb._tcp.${host}`);
+      logger.info('db', '已切換 DNS 並成功解析 SRV');
+    } catch (e2) {
+      logger.error('db', `改用公共 DNS 仍無法解析 SRV：${e2.code || e2.message}`);
+    }
+  }
+}
+
 class MongoStore {
   constructor(uri, dbName) {
     this.uri = uri;
@@ -154,6 +184,7 @@ class MongoStore {
   }
 
   async init() {
+    await ensureDnsWorks(this.uri);
     this.client = new MongoClient(this.uri, { serverSelectionTimeoutMS: 8000 });
     await this.client.connect();
     this.mongoDb = this.client.db(this.dbName);
@@ -198,4 +229,4 @@ class MongoStore {
   }
 }
 
-module.exports = { MongoStore };
+module.exports = { MongoStore, ensureDnsWorks };

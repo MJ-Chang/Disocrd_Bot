@@ -190,7 +190,8 @@ class MongoStore {
     this.mongoDb = this.client.db(this.dbName);
     const names = await this.mongoDb.listCollections().toArray();
     for (const info of names) {
-      this.collection(info.name);
+      const col = this.collection(info.name);
+      await col.load(); // 重要：載入既有資料，否則記憶體是空的，設定會被預設值覆寫
     }
     const masked = this.uri.replace(/\/\/[^@]+@/, '//***@');
     logger.info('db', `已連線 MongoDB（${masked}），載入 ${names.length} 個 collection`);

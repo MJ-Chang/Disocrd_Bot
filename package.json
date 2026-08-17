@@ -12,7 +12,9 @@
     "dev": "node --watch src/index.js",
     "check": "node scripts/check.js",
     "dry": "node src/index.js --dry",
-    "test:panel": "node scripts/test-panel.js"
+    "test:panel": "node scripts/test-panel.js",
+    "test:mongo": "node scripts/test-mongo-store.js",
+    "migrate:mongo": "node scripts/migrate-json-to-mongo.js"
   },
   "keywords": [
     "discord",
@@ -21,10 +23,11 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@discordjs/voice": "^0.18.0",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
-    "play-dl": "^1.9.7",
-    "@discordjs/voice": "^0.18.0",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "mongodb": "^7.5.0",
+    "play-dl": "^1.9.7"
   }
 }

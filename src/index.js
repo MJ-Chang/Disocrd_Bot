@@ -17,13 +17,16 @@ async function dryRun(client) {
   logger.info('dry-run', `指令數：${client.commands.size}`);
   logger.info('dry-run', `事件數：${client._events ? Object.keys(client._events).length : 0}`);
   logger.info('dry-run', '所有模組載入成功 ✓');
-  client.db.flush();
+  await client.db.flush();
   logger.info('dry-run', '資料庫已刷新，結束。');
   process.exit(0);
 }
 
 async function main() {
   const client = createClient();
+
+  // 初始化資料庫（JSON 或 MongoDB）
+  await client.db.init();
 
   await loadCommands(client);
   await loadEvents(client);
@@ -41,7 +44,12 @@ async function main() {
   // 優雅關閉
   const shutdown = async (signal) => {
     logger.info('main', `收到 ${signal}，正在儲存資料並關閉…`);
-    client.db.flush();
+    await client.db.flush();
+    try {
+      if (typeof client.db.close === 'function') await client.db.close();
+    } catch (e) {
+      /* ignore */
+    }
     try {
       client.destroy();
     } catch (e) {

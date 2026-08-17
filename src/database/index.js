@@ -161,6 +161,46 @@ class Store {
   flush() {
     for (const c of this.collections.values()) c.persist();
   }
+
+  async close() {
+    this.flush();
+  }
 }
 
-module.exports = new Store(config.dataDir);
+/**
+ * 資料庫代理：預設使用本地 JSON；當 DB_TYPE=mongodb 且有連線字串時，
+ * init() 會切換成 MongoDB 後端（失敗自動退回 JSON）。兩者 API 完全相容。
+ */
+const state = { store: new Store(config.dataDir) };
+
+const proxy = {
+  collection: (name) => state.store.collection(name),
+  flush: () => state.store.flush(),
+  listCollections: () => state.store.listCollections(),
+  close: async () => {
+    if (typeof state.store.close === 'function') await state.store.close();
+  },
+
+  /** 依設定初始化資料庫（啟動時呼叫一次） */
+  async init() {
+    if (config.dbType === 'mongodb' && config.mongodbUri) {
+      try {
+        const { MongoStore } = require('./mongoStore');
+        const mongo = new MongoStore(config.mongodbUri, config.mongodbName);
+        await mongo.init();
+        state.store = mongo;
+        logger.info('db', `已使用 MongoDB 資料庫（${config.mongodbName}）`);
+        return;
+      } catch (e) {
+        logger.error('db', `MongoDB 連線失敗（${e.message}），改用本地 JSON 儲存`);
+      }
+    } else if (config.dbType === 'mongodb') {
+      logger.warn('db', 'DB_TYPE=mongodb 但未設定 MONGODB_URI，改用本地 JSON 儲存');
+    }
+    logger.info('db', `使用本地 JSON 儲存（${config.dataDir}）`);
+  },
+
+  Store,
+};
+
+module.exports = proxy;

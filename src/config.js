@@ -32,6 +32,12 @@ const config = {
   musicEnabled: process.env.MUSIC_ENABLED !== 'false',
   /** 訊息語言：both（中英雙語，預設）/ zh（僅中文）/ en（僅英文） */
   lang: (process.env.LANG || 'both').toLowerCase(),
+  /** 資料庫類型：json（本地檔案，預設）/ mongodb（MongoDB Atlas 等） */
+  dbType: (process.env.DB_TYPE || 'json').toLowerCase(),
+  /** MongoDB 連線字串（DB_TYPE=mongodb 時必填） */
+  mongodbUri: process.env.MONGODB_URI || '',
+  /** MongoDB 資料庫名稱 */
+  mongodbName: process.env.MONGODB_NAME || 'disocrd_bot',
   /** Privileged Intents 開關（對應開發者後台的三個開關；設 false 可略過） */
   intents: {
     members: process.env.INTENT_MEMBERS !== 'false',

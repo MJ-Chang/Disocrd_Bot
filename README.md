@@ -200,6 +200,10 @@ https://discord.com/oauth2/authorize?client_id=CLIENT_ID&permissions=8&scope=bot
 
 ## 🗄️ 資料儲存
 
+支援兩種資料庫，`.env` 的 `DB_TYPE` 切換（兩者 API 完全相容，功能程式碼不需修改）：
+
+### 選項一：本地 JSON（預設）
+
 所有資料以 JSON 檔儲存在 `data/` 目錄（已加入 `.gitignore`）：
 
 | 檔案 | 內容 |
@@ -215,6 +219,26 @@ https://discord.com/oauth2/authorize?client_id=CLIENT_ID&permissions=8&scope=bot
 | `data/tempVoice.json` | 臨時語音紀錄 |
 | `data/afk.json` | AFK 狀態 |
 | `data/transcripts/` | 客服單轉錄檔 |
+
+> ⚠️ 若用 Docker / Coolify 部署，**容器重啟會清空 `data/`**（沒有掛載持久化磁碟時）。請改用 MongoDB。
+
+### 選項二：MongoDB（推薦用於 Docker / Coolify）
+
+1. 到 [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) 註冊免費帳號，建立 **M0（Free）** 叢集
+2. 建立 Database User 並取得連線字串（格式 `mongodb+srv://使用者:密碼@cluster.mongodb.net/`）
+3. `.env` 設定：
+   ```
+   DB_TYPE=mongodb
+   MONGODB_URI=mongodb+srv://使用者:密碼@cluster.mongodb.net/
+   MONGODB_NAME=disocrd_bot
+   ```
+4. **遷移既有資料**（把目前 `data/` 的 JSON 匯入 MongoDB）：
+   ```bash
+   node scripts/migrate-json-to-mongo.js
+   ```
+5. 重啟機器人。之後所有資料（設定、經濟、等級、抽獎…）都存在雲端，**重啟不會消失**。
+
+> MongoDB 連線失敗時會**自動退回本地 JSON**，機器人不會因此掛掉（終端機有警告）。
 
 ## ❓ 常見問題
 

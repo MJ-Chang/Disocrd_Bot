@@ -153,23 +153,34 @@ function extractSrvHost(uri) {
 
 /**
  * Windows 上 Node.js 的 c-ares 解析器可能無法用系統 DNS 查詢 SRV 紀錄
- * （ECONNREFUSED），導致 mongodb+srv:// 連線失敗。此函式在連線前先測試 SRV，
- * 失敗則改用公共 DNS（8.8.8.8 / 1.1.1.1）重試。
+ * （ECONNREFUSED），導致 mongodb+srv:// 連線失敗。
+ *
+ * 此函式在連線前先測試 SRV：
+ *  - 系統 DNS 正常 → 不動
+ *  - 系統 DNS 失敗 → 嘗試公共 DNS（8.8.8.8 / 1.1.1.1）
+ *  - 公共 DNS 也失敗 → **還原系統 DNS**（避免在 Docker/Coolify 容器中
+ *    永久換掉正常的 Docker DNS 127.0.0.11，反而弄壞連線）
  */
 async function ensureDnsWorks(uri) {
   if (!uri || !uri.startsWith('mongodb+srv://')) return;
   const host = extractSrvHost(uri);
   if (!host) return;
+  const original = dns.getServers();
   try {
     await dns.promises.resolveSrv(`_mongodb._tcp.${host}`);
   } catch (e) {
-    logger.warn('db', `系統 DNS 無法查詢 SRV（${e.code}），改用 8.8.8.8 / 1.1.1.1`);
+    logger.warn('db', `系統 DNS 無法查詢 SRV（${e.code}），嘗試公共 DNS`);
     try {
       dns.setServers(['8.8.8.8', '1.1.1.1']);
       await dns.promises.resolveSrv(`_mongodb._tcp.${host}`);
-      logger.info('db', '已切換 DNS 並成功解析 SRV');
+      logger.info('db', '已切換公共 DNS 並成功解析 SRV');
     } catch (e2) {
-      logger.error('db', `改用公共 DNS 仍無法解析 SRV：${e2.code || e2.message}`);
+      logger.error('db', `公共 DNS 也無法解析 SRV（${e2.code}），還原系統 DNS 設定`);
+      try {
+        dns.setServers(original);
+      } catch (e3) {
+        /* ignore */
+      }
     }
   }
 }

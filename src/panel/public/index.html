@@ -620,6 +620,16 @@ const FEATURES = [
       { path: 'music.defaultVolume', label: '預設音量（0-100）Default volume (0-100)', type: 'number' },
     ],
   },
+  {
+    key: 'guide', icon: '📖', title: '指令說明頻道 Command Guide', desc: '在指定頻道固定顯示所有指令說明（成員不用打 /help）｜Pinned command guide in a channel',
+    status: (s) => s.guide.enabled && !!s.guide.channel,
+    fields: [
+      { path: 'guide.enabled', label: '啟用指令說明 Enable guide', type: 'bool' },
+      { path: 'guide.channel', label: '指令說明頻道 Guide channel', type: 'channel', filter: 'text' },
+    ],
+    actions: [{ label: '📨 發送指令說明到所選頻道 Send command guide', fn: 'guideSend' }],
+    hint: '點「發送指令說明」後，頻道會出現所有指令的分類說明（自動隱藏管理指令）｜Sends a categorized command list (admin commands hidden)',
+  },
 ];
 
 function getPath(obj, p) { return p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj); }
@@ -850,6 +860,13 @@ async function statsCreate() {
     const r = await api(`/api/guild/${currentGuildId}/stats/setup`, { method: 'POST', body: JSON.stringify({ category }) });
     toast(r.message || '✅ 統計頻道已建立', 'ok');
   } catch (e) { toast('建立失敗：' + e.message, 'err'); }
+}
+
+async function guideSend() {
+  try {
+    const r = await api(`/api/guild/${currentGuildId}/guide/send`, { method: 'POST' });
+    toast(r.message, 'ok');
+  } catch (e) { toast('發送失敗：' + e.message, 'err'); }
 }
 
 /* ===== 進階 JSON ===== */

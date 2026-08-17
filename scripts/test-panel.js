@@ -179,6 +179,12 @@ const mockClient = {
   check('測試歡迎訊息 200', r.status === 200);
   r = await fetch(`${base}/api/guild/g1/stats/setup`, { method: 'POST', ...J, body: JSON.stringify({}) });
   check('統計頻道無分類 → 400', r.status === 400);
+  r = await fetch(`${base}/api/guild/g1/guide/send`, { method: 'POST', ...A });
+  check('指令說明未設定 → 400', r.status === 400);
+  settingsStore.g1 = { guide: { enabled: true, channel: 'c1', messageId: null } };
+  r = await fetch(`${base}/api/guild/g1/guide/send`, { method: 'POST', ...A });
+  const gsend = await r.json();
+  check('發送指令說明 200', r.status === 200 && gsend.ok === true);
 
   console.log('== 資料庫 ==');
   r = await fetch(`${base}/api/collection/demo/k1`, { method: 'PUT', ...J, body: JSON.stringify({ count: 5 }) });

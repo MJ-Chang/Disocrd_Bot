@@ -128,6 +128,11 @@ const DEFAULTS = {
     defaultVolume: 60,
     maxDuration: null,
   },
+  guide: {
+    enabled: false,
+    channel: null,
+    messageId: null,
+  },
   modlogChannel: null,
 };
 

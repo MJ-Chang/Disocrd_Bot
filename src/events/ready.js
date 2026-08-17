@@ -12,6 +12,7 @@ const READY_HOOKS = [
   'leveling',
   'economy',
   'music',
+  'guide',
 ];
 
 module.exports = {

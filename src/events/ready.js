@@ -15,7 +15,7 @@ const READY_HOOKS = [
 ];
 
 module.exports = {
-  name: 'ready',
+  name: 'clientReady',
   once: true,
   async run(client) {
     client.ready = true;

@@ -5,7 +5,7 @@ const { logger } = require('../utils/logger');
 /**
  * 載入所有事件。
  * 每個事件檔 export：
- *  - name: discord.js 事件名稱（例如 'ready'）
+ *  - name: discord.js 事件名稱（例如 'clientReady'）
  *  - once: 是否只執行一次（可選）
  *  - run(client, ...args): async
  */

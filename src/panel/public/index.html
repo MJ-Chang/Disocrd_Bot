@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>機器人控制面板</title>
+<style>
+  :root {
+    --bg: #0f1220;
+    --bg2: #171a2b;
+    --card: #1e2236;
+    --card2: #252a42;
+    --border: #2e3554;
+    --text: #e8eaf6;
+    --muted: #8b91ad;
+    --accent: #5865f2;
+    --green: #57f287;
+    --red: #ed4245;
+    --yellow: #fee75c;
+    --cyan: #00b0f4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #2a2f55 0%, transparent 60%), var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+  /* 側邊欄 */
+  .sidebar {
+    width: 210px;
+    background: rgba(20, 23, 40, .85);
+    border-right: 1px solid var(--border);
+    padding: 18px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    flex-shrink: 0;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; padding: 6px 10px 18px; font-weight: 700; font-size: 16px; }
+  .logo .dot { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; font-size: 18px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 10px; cursor: pointer;
+    color: var(--muted); font-size: 14px; transition: .15s; border: none; background: none; text-align: left;
+  }
+  .nav-item:hover { background: var(--card); color: var(--text); }
+  .nav-item.active { background: var(--accent); color: #fff; }
+  .main { flex: 1; padding: 26px 34px; overflow-y: auto; height: 100vh; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  .view { display: none; }
+  .view.active { display: block; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* 卡片 */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .card .label { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .card .value { font-size: 22px; font-weight: 700; }
+  .card .value.small { font-size: 16px; }
+  .btn {
+    background: var(--card2); color: var(--text); border: 1px solid var(--border);
+    padding: 9px 16px; border-radius: 10px; cursor: pointer; font-size: 13px; transition: .15s;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
+  .btn.success { background: transparent; border-color: var(--green); color: var(--green); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  /* 日誌 */
+  .logbox {
+    background: #0b0e1a; border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; height: calc(100vh - 200px); overflow-y: auto;
+    font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.7;
+  }
+  .log-line { white-space: pre-wrap; word-break: break-all; }
+  .log-line .time { color: #565d7a; margin-right: 8px; }
+  .log-line .tag { color: #7f8db8; margin-right: 6px; }
+  .lv-debug { color: #777c99; } .lv-info { color: #9fd0ff; }
+  .lv-warn { color: var(--yellow); } .lv-error { color: #ff7b7b; }
+  .logbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+  .logbar .live { color: var(--green); }
+  .logbar label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  /* 伺服器 */
+  .guild-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .guild-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; cursor: pointer; transition: .15s; display: flex; align-items: center; gap: 12px; }
+  .guild-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .guild-card img { width: 44px; height: 44px; border-radius: 50%; background: var(--card2); }
+  .guild-card .gname { font-weight: 600; font-size: 14px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .guild-card .gmeta { color: var(--muted); font-size: 12px; }
+  .guild-card .gid { color: var(--muted); font-size: 10px; margin-top: 3px; }
+  /* 設定表單 */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .field { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .field select, .field input[type=text], .field input[type=number], .field textarea {
+    width: 100%; background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit;
+  }
+  .field select[multiple] { min-height: 110px; }
+  .form-section { margin-bottom: 20px; }
+  .form-section > .form-section-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border); color: var(--text);
+  }
+  .quick-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 18px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+  .feature-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  .feature-card .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .feature-card .fdesc { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  .feature-card .fhint { background: rgba(88,101,242,.12); border: 1px solid rgba(88,101,242,.3); color: var(--cyan); font-size: 12.5px; border-radius: 8px; padding: 8px 12px; margin-top: 12px; }
+  .feature-card .card-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+  .words-box { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; align-items: center; }
+  .chip {
+    background: var(--accent); color: #fff; font-size: 12px; border-radius: 20px;
+    padding: 3px 10px; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip-x { cursor: pointer; font-weight: 700; opacity: .8; }
+  .chip-x:hover { opacity: 1; }
+  .field input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+  .field textarea { min-height: 90px; font-family: Consolas, monospace; resize: vertical; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  /* 資料庫 */
+  .db-layout { display: grid; grid-template-columns: 230px 1fr; gap: 16px; }
+  .col-list { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; max-height: calc(100vh - 200px); overflow-y: auto; }
+  .col-item { padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; color: var(--muted); }
+  .col-item:hover { background: var(--card2); color: var(--text); }
+  .col-item.active { background: var(--accent); color: #fff; }
+  .col-item .cnt { font-size: 11px; opacity: .8; }
+  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: auto; max-height: calc(100vh - 200px); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--card); }
+  td { padding: 9px 12px; border-bottom: 1px solid rgba(46,53,84,.5); vertical-align: top; }
+  tr:hover td { background: var(--card2); }
+  td.key { font-family: Consolas, monospace; font-size: 12px; color: var(--cyan); max-width: 220px; word-break: break-all; }
+  td.val { max-width: 420px; word-break: break-all; color: var(--muted); }
+  td.act { white-space: nowrap; }
+  .row-btn { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 3px 9px; font-size: 12px; cursor: pointer; margin-right: 4px; }
+  .row-btn:hover { color: var(--text); border-color: var(--accent); }
+  .row-btn.del:hover { color: var(--red); border-color: var(--red); }
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(5,6,12,.7); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .overlay.show { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; width: min(680px, 92vw); max-height: 86vh; overflow-y: auto; }
+  .modal h3 { margin-bottom: 14px; }
+  .modal .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+  .modal textarea { width: 100%; min-height: 260px; background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-family: Consolas, monospace; font-size: 12.5px; resize: vertical; }
+  .json-ok { border-color: var(--green) !important; }
+  .json-bad { border-color: var(--red) !important; }
+  /* Token 登入 */
+  #loginOverlay .modal { width: min(380px, 92vw); }
+  #loginOverlay input { width: 100%; background: var(--bg2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 11px 12px; font-size: 14px; margin-bottom: 14px; }
+  /* Toast */
+  #toastWrap { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+  .toast { background: var(--card2); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 11px 16px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.4); animation: slide .25s ease; max-width: 340px; }
+  .toast.ok { border-left-color: var(--green); } .toast.err { border-left-color: var(--red); }
+  @keyframes slide { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+  .empty { color: var(--muted); text-align: center; padding: 40px; font-size: 14px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .bot-head { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+  .bot-head img { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--accent); }
+  .bot-head .bt { font-size: 20px; font-weight: 700; }
+  .bot-head .bs { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; margin-top: 6px; }
+  .pill.on { background: rgba(87,242,135,.15); color: var(--green); }
+  .pill.off { background: rgba(237,66,69,.15); color: var(--red); }
+  .link { color: var(--cyan); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo"><span class="dot">🤖</span> 控制面板 Control Panel</div>
+  <button class="nav-item active" data-view="status">📊 狀態 Status</button>
+  <button class="nav-item" data-view="logs">📜 即時日誌 Logs</button>
+  <button class="nav-item" data-view="servers">🏠 伺服器 Servers</button>
+  <button class="nav-item" data-view="db">🗄️ 資料庫 Database</button>
+  <button class="nav-item" data-view="backup">💾 備份 Backup</button>
+</div>
+
+<div class="main">
+  <!-- 狀態 -->
+  <div class="view active" id="view-status">
+    <h1>📊 機器人狀態 Bot Status</h1>
+    <div class="subtitle">即時掌握機器人的運作狀況｜Monitor your bot in real time</div>
+    <div class="bot-head" id="botHead"></div>
+    <div class="cards" id="statusCards"></div>
+    <div class="btn-row">
+      <button class="btn primary" onclick="reloadCommands()">🔄 重新載入指令 Reload Commands</button>
+      <button class="btn" onclick="flushDb()">💾 儲存資料庫 Save Database</button>
+      <button class="btn" onclick="loadStatus()">↻ 重新整理 Refresh</button>
+    </div>
+  </div>
+
+  <!-- 日誌 -->
+  <div class="view" id="view-logs">
+    <h1>📜 即時日誌 Live Logs</h1>
+    <div class="subtitle">機器人運行日誌（自動更新）｜Live bot logs (auto-update)</div>
+    <div class="logbar">
+      <span id="logState" class="live">● 已連線 Connected</span>
+      <label><input type="checkbox" id="autoScroll" checked> 自動捲動 Auto-scroll</label>
+      <button class="btn" onclick="clearLogs()" style="padding:4px 12px">清除 Clear</button>
+    </div>
+    <div class="logbox" id="logbox"></div>
+  </div>
+
+  <!-- 伺服器 -->
+  <div class="view" id="view-servers">
+    <h1>🏠 伺服器 Servers</h1>
+    <div class="subtitle">點擊你的伺服器進入「設定中心」，所有功能都在這裡設定｜Pick your server to open the Settings Center</div>
+    <div class="guild-grid" id="guildGrid"></div>
+  </div>
+
+  <!-- 設定中心 -->
+  <div class="view" id="view-settings">
+    <button class="btn" onclick="backToServers()" style="margin-bottom:14px">← 返回伺服器 Back</button>
+    <h1 id="settingsTitle">⚙️ 設定中心 Settings Center</h1>
+    <div class="subtitle" id="settingsSubtitle"></div>
+    <div id="quickCheck" class="quick-strip"></div>
+    <div id="featureCards"></div>
+    <div class="card" style="margin-top:20px">
+      <details>
+        <summary style="cursor:pointer; color:var(--muted); font-size:13px">🔧 進階：原始 JSON 設定（一般不需要動）Advanced: raw JSON settings (usually not needed)</summary>
+        <textarea id="settingsJson" spellcheck="false" style="margin-top:10px"></textarea>
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px">
+          <button class="btn danger" onclick="resetSettings()">重設全部為預設 Reset all</button>
+          <button class="btn primary" onclick="saveRawJson()">💾 儲存 JSON Save JSON</button>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- 資料庫 -->
+  <div class="view" id="view-db">
+    <h1>🗄️ 資料庫 Database</h1>
+    <div class="subtitle">瀏覽與編輯所有 JSON 資料｜Browse and edit all JSON data</div>
+    <div class="db-layout">
+      <div class="col-list" id="colList"></div>
+      <div class="table-wrap" id="dbTable"><div class="empty">選擇左側的 collection｜Pick a collection on the left</div></div>
+    </div>
+  </div>
+
+  <!-- 備份 -->
+  <div class="view" id="view-backup">
+    <h1>💾 備份與還原 Backup &amp; Restore</h1>
+    <div class="subtitle">匯出全部資料或從備份還原｜Export all data or restore from a backup</div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">下載備份 Download Backup</div>
+        <div class="value small">將所有 collection 匯出為 JSON 檔案｜Export all collections as a JSON file</div>
+        <div style="margin-top:14px"><button class="btn primary" onclick="downloadBackup()">⬇️ 下載備份 Download</button></div>
+      </div>
+      <div class="card">
+        <div class="label">還原備份 Restore Backup</div>
+        <div class="value small">上傳 backup-*.json 覆蓋目前資料（危險操作）｜Upload backup-*.json to overwrite data (dangerous)</div>
+        <div style="margin-top:14px">
+          <input type="file" id="restoreFile" accept=".json" style="display:none">
+          <button class="btn danger" onclick="document.getElementById('restoreFile').click()">⬆️ 選擇備份檔 Choose File</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="label">說明 Notes</div>
+      <div class="value small" style="font-weight:normal; line-height:1.9; color:var(--muted)">
+        備份檔包含所有 collection（guilds 設定、warns、economy、levels、giveaways、tickets、reminders、birthdays、tempVoice、afk 等）。<br>
+        The backup includes all collections (settings, warns, economy, levels, giveaways, tickets, reminders, birthdays, tempVoice, afk, etc.).<br>
+        還原會<strong style="color:var(--red)">覆蓋</strong>目前的資料，請先下載備份再進行還原。<br>
+        Restoring will <strong style="color:var(--red)">overwrite</strong> current data — download a backup first.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 資料編輯 Modal -->
+<div class="overlay" id="editOverlay">
+  <div class="modal">
+    <h3 id="editTitle">編輯資料</h3>
+    <textarea id="editJson" spellcheck="false"></textarea>
+    <div class="modal-btns">
+      <button class="btn danger" onclick="deleteEntry()">🗑️ 刪除</button>
+      <button class="btn" onclick="closeModal('editOverlay')">取消</button>
+      <button class="btn primary" onclick="saveEntry()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Token 登入 -->
+<div class="overlay show" id="loginOverlay">
+  <div class="modal">
+    <h3>🔑 輸入控制面板 Token Enter Panel Token</h3>
+    <p style="color:var(--muted); font-size:13px; margin-bottom:14px; line-height:1.8">
+      Token 在機器人啟動時顯示於終端機（未設定 PANEL_TOKEN 時為自動產生）。<br>
+      The token is printed in the terminal when the bot starts (auto-generated if PANEL_TOKEN is not set).
+    </p>
+    <input type="password" id="tokenInput" placeholder="貼上 Token… Paste your token…" autocomplete="off">
+    <div class="modal-btns">
+      <button class="btn primary" onclick="submitToken()">登入 Login</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastWrap"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let TOKEN = sessionStorage.getItem('panel_token') || '';
+let currentGuildId = null;
+let currentCol = null;
+let currentKey = null;
+
+/* ===== API 工具 ===== */
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const res = await fetch(path, { ...options, headers });
+  if (res.status === 401) {
+    $('#loginOverlay').classList.add('show');
+    throw new Error('unauthorized');
+  }
+  if (!res.ok) {
+    let msg = 'HTTP ' + res.status;
+    try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+/* ===== Toast ===== */
+function toast(msg, type = '') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  $('#toastWrap').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+/* ===== Token ===== */
+async function submitToken() {
+  const t = $('#tokenInput').value.trim();
+  if (!t) return;
+  TOKEN = t;
+  sessionStorage.setItem('panel_token', t);
+  $('#loginOverlay').classList.remove('show');
+  try {
+    await api('/api/status');
+    toast('✅ 登入成功', 'ok');
+    loadStatus();
+  } catch (e) {
+    toast('❌ Token 錯誤', 'err');
+    $('#loginOverlay').classList.add('show');
+  }
+}
+
+/* ===== 導航 ===== */
+document.querySelectorAll('.nav-item').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+    $('#view-' + btn.dataset.view).classList.add('active');
+    if (btn.dataset.view === 'status') loadStatus();
+    if (btn.dataset.view === 'servers') loadGuilds();
+    if (btn.dataset.view === 'db') loadCollections();
+  });
+});
+
+/* ===== 狀態頁 ===== */
+async function loadStatus() {
+  try {
+    const s = await api('/api/status');
+    const online = s.online;
+    const head = $('#botHead');
+    head.innerHTML = `
+      <img src="${s.user ? s.user.avatar : ''}" onerror="this.style.visibility='hidden'">
+      <div>
+        <div class="bt">${s.user ? s.user.tag : '未登入'}</div>
+        <div class="bs">ID：${s.user ? s.user.id : '—'} ｜ 版本 v${s.version} ｜ Node ${s.node} ｜ discord.js v${s.discordjs}</div>
+        <span class="pill ${online ? 'on' : 'off'}">${online ? '● 線上' : '○ 離線'}</span>
+      </div>`;
+    const fmt = (ms) => {
+      const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), s2 = Math.floor(ms % 6e4 / 1e3);
+      return (d ? d + ' 天 ' : '') + (h ? h + ' 小時 ' : '') + (m ? m + ' 分 ' : '') + s2 + ' 秒';
+    };
+    $('#statusCards').innerHTML = [
+      ['⏱️ 運行時間 Uptime', fmt(s.uptimeMs)],
+      ['📶 延遲 Latency', s.ping + ' ms'],
+      ['🏠 伺服器數 Servers', s.guilds],
+      ['👥 使用者數 Users', s.users],
+      ['📝 指令數 Commands', s.commands],
+      ['🧠 記憶體 Memory', s.memoryMB + ' MB'],
+    ].map(([l, v]) => `<div class="card"><div class="label">${l}</div><div class="value ${String(v).length > 14 ? 'small' : ''}">${v}</div></div>`).join('');
+  } catch (e) {
+    if (e.message !== 'unauthorized') toast('載入狀態失敗：' + e.message, 'err');
+  }
+}
+
+async function reloadCommands() {
+  try {
+    const r = await api('/api/bot/reload', { method: 'POST' });
+    toast(`✅ 已重新載入 ${r.count} 個指令`, 'ok');
+    loadStatus();
+  } catch (e) { toast('重載失敗：' + e.message, 'err'); }
+}
+
+async function flushDb() {
+  try {
+    await api('/api/bot/flush', { method: 'POST' });
+    toast('✅ 資料庫已寫入磁碟', 'ok');
+  } catch (e) { toast('儲存失敗：' + e.message, 'err'); }
+}
+
+/* ===== 日誌頁 ===== */
+let logStream = null;
+function openLogs() {
+  if (logStream) return;
+  const box = $('#logbox');
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const append = (entry) => {
+    const div = document.createElement('div');
+    div.className = 'log-line';
+    div.innerHTML = `<span class="time">${esc(entry.time)}</span><span class="tag">[${esc(entry.level.toUpperCase())}] ${esc(entry.tag)}</span><span class="lv-${esc(entry.level)}">${esc(entry.msg)}</span>`;
+    box.appendChild(div);
+    while (box.children.length > 2000) box.removeChild(box.firstChild);
+    if ($('#autoScroll').checked) box.scrollTop = box.scrollHeight;
+  };
+  logStream = new EventSource('/api/logs?token=' + encodeURIComponent(TOKEN));
+  logStream.onmessage = (e) => { try { append(JSON.parse(e.data)); } catch (err) {} };
+  logStream.onerror = () => {
+    $('#logState').textContent = '● 已斷線，重新連線中…';
+    $('#logState').classList.remove('live');
+    logStream.close();
+    logStream = null;
+    setTimeout(() => { if (document.querySelector('#view-logs').classList.contains('active')) openLogs(); }, 3000);
+  };
+  $('#logState').textContent = '● 已連線';
+  $('#logState').classList.add('live');
+}
+function clearLogs() { $('#logbox').innerHTML = ''; }
+
+/* ===== 伺服器頁 / 設定中心 ===== */
+let guildNames = {};
+let sCache = null;
+let channelsCache = [];
+let rolesCache = [];
+
+function showView(name) {
+  document.querySelectorAll('.nav-item').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+  $('#view-' + name).classList.add('active');
+}
+
+async function loadGuilds() {
+  try {
+    const list = await api('/api/guilds');
+    const grid = $('#guildGrid');
+    if (!list.length) { grid.innerHTML = '<div class="empty">機器人尚未加入任何伺服器｜The bot has not joined any server yet</div>'; return; }
+    list.forEach((g) => { guildNames[g.id] = g.name; });
+    grid.innerHTML = list.map((g) => `
+      <div class="guild-card" onclick="openSettingsCenter('${g.id}')">
+        <img src="${g.icon || ''}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2244%22 height=%2244%22><rect width=%2244%22 height=%2244%22 rx=%2222%22 fill=%22%23252a42%22/></svg>'">
+        <div style="min-width:0">
+          <div class="gname">${g.name}</div>
+          <div class="gmeta">👥 ${g.memberCount} 位成員 ｜ 點擊進入設定中心</div>
+          <div class="gid">${g.id}</div>
+        </div>
+      </div>`).join('');
+    // 只有一個伺服器 → 直接進入設定中心
+    if (list.length === 1) {
+      setTimeout(() => openSettingsCenter(list[0].id), 150);
+    }
+  } catch (e) { if (e.message !== 'unauthorized') toast('載入伺服器失敗：' + e.message, 'err'); }
+}
+
+function backToServers() { showView('servers'); loadGuilds(); }
+
+/* ===== 功能卡片定義（中英雙語） ===== */
+const FEATURES = [
+  {
+    key: 'welcome', icon: '👋', title: '歡迎訊息 Welcome', desc: '成員加入伺服器時自動發送歡迎訊息｜Send a welcome message when members join',
+    status: (s) => s.welcome.enabled && !!s.welcome.channel,
+    fields: [
+      { path: 'welcome.enabled', label: '啟用此功能 Enable', type: 'bool' },
+      { path: 'welcome.channel', label: '歡迎頻道 Welcome channel', type: 'channel', filter: 'text' },
+      { path: 'welcome.dm', label: '同時私訊新成員 DM new members', type: 'bool' },
+      { path: 'welcome.message', label: '歡迎訊息內容 Message（可用 {user} {mention} {guild} {count}）', type: 'textarea' },
+      { path: 'goodbye.enabled', label: '啟用歡送訊息 Enable goodbye', type: 'bool' },
+      { path: 'goodbye.channel', label: '歡送頻道 Goodbye channel', type: 'channel', filter: 'text' },
+    ],
+    actions: [{ label: '📨 傳送測試歡迎訊息 Send test welcome', fn: 'welcomeTest' }],
+  },
+  {
+    key: 'verify', icon: '🔐', title: '按鈕驗證 Button Verification', desc: '成員點擊按鈕獲得驗證身分組｜Click a button to get the verified role',
+    status: (s) => s.verify.enabled && !!s.verify.channel && !!s.verify.role,
+    fields: [
+      { path: 'verify.enabled', label: '啟用此功能 Enable', type: 'bool' },
+      { path: 'verify.channel', label: '驗證面板要發送的頻道 Panel channel', type: 'channel', filter: 'text' },
+      { path: 'verify.role', label: '驗證後獲得的身分組 Verified role', type: 'role' },
+      { path: 'verify.buttonLabel', label: '按鈕文字 Button text', type: 'text' },
+      { path: 'verify.message', label: '面板說明 / 伺服器規則 Panel text / rules', type: 'textarea' },
+    ],
+    actions: [{ label: '📨 發送驗證面板到所選頻道 Send verification panel', fn: 'verifySend' }],
+    hint: '點「發送驗證面板」後，頻道會出現「規則說明 + 驗證按鈕」｜Sends the rules + verify button to the channel',
+  },
+  {
+    key: 'autoroles', icon: '🎖️', title: '自動身分組 Auto Roles', desc: '新成員加入時自動獲得身分組｜Auto-assign roles to new members',
+    status: (s) => Array.isArray(s.autoroles) && s.autoroles.length > 0,
+    fields: [
+      { path: 'autoroles', label: '自動發放的身分組（Ctrl 複選）Roles to assign (Ctrl to multi-select)', type: 'roles' },
+    ],
+  },
+  {
+    key: 'automod', icon: '🤖', title: '自動審核 Auto-Mod', desc: '偵測並處理違規訊息（髒話、廣告連結、洗頻等）｜Detect and handle violations (bad words, links, spam)',
+    status: (s) => s.automod.enabled,
+    fields: [
+      { path: 'automod.enabled', label: '啟用自動審核 Enable auto-mod', type: 'bool' },
+      { path: 'automod.action', label: '違規處理方式 Action on violation', type: 'select', options: [
+        { value: 'delete', label: '🗑️ 刪除訊息 Delete message' },
+        { value: 'warn', label: '⚠️ 記警告 Warn' },
+        { value: 'timeout', label: '⏱️ 禁言 10 分鐘 Timeout 10m' },
+        { value: 'kick', label: '👢 踢出 Kick' },
+        { value: 'ban', label: '🔨 封鎖 Ban' },
+      ] },
+      { path: 'automod.bannedWords', label: '過濾字詞（輸入後按＋新增）Banned words', type: 'words' },
+      { path: 'automod.invites', label: '封鎖 Discord 邀請連結 Block Discord invites', type: 'bool' },
+      { path: 'automod.links', label: '封鎖外部連結 Block external links', type: 'bool' },
+      { path: 'automod.caps', label: '全大寫訊息偵測 ALL-CAPS detection', type: 'bool' },
+      { path: 'automod.mentions', label: '大量提及偵測 Mass-mention detection', type: 'bool' },
+      { path: 'automod.spam', label: '洗頻偵測 Spam detection', type: 'bool' },
+      { path: 'automod.duplicate', label: '重複訊息偵測 Duplicate detection', type: 'bool' },
+    ],
+  },
+  {
+    key: 'tickets', icon: '🎫', title: '客服表單 Tickets', desc: '成員點擊按鈕建立私密客服頻道｜Members click a button to open a private ticket',
+    status: (s) => s.tickets.enabled && !!s.tickets.channel && !!s.tickets.category,
+    fields: [
+      { path: 'tickets.enabled', label: '啟用客服表單 Enable tickets', type: 'bool' },
+      { path: 'tickets.channel', label: '客服面板要發送的頻道 Panel channel', type: 'channel', filter: 'text' },
+      { path: 'tickets.category', label: '客服單建立的分類 Ticket category', type: 'channel', filter: 'category' },
+      { path: 'tickets.supportRole', label: '支援人員身分組 Support role', type: 'role' },
+      { path: 'tickets.transcriptChannel', label: '關閉後轉錄檔存放頻道 Transcript channel', type: 'channel', filter: 'text' },
+      { path: 'tickets.maxTickets', label: '每人同時最多客服單數 Max tickets per user', type: 'number' },
+    ],
+    actions: [{ label: '📨 發送客服面板到所選頻道 Send ticket panel', fn: 'ticketsSend' }],
+    hint: '點「發送客服面板」後，頻道會出現「🎫 建立客服單」按鈕｜Sends the "Open a ticket" button to the channel',
+  },
+  {
+    key: 'suggestions', icon: '💡', title: '建議系統 Suggestions', desc: '成員發布建議，大家投票，管理員可核准/拒絕｜Members post suggestions, vote, moderators approve/deny',
+    status: (s) => s.suggestions.enabled && !!s.suggestions.channel,
+    fields: [
+      { path: 'suggestions.enabled', label: '啟用建議系統 Enable suggestions', type: 'bool' },
+      { path: 'suggestions.channel', label: '建議頻道 Suggestions channel', type: 'channel', filter: 'text' },
+    ],
+  },
+  {
+    key: 'logging', icon: '📋', title: '審計日誌 Audit Logs', desc: '記錄成員進出、訊息刪改、封鎖等事件｜Log joins, message edits/deletes, bans, etc.',
+    status: (s) => s.logs.enabled && !!s.logs.channel,
+    fields: [
+      { path: 'logs.enabled', label: '啟用審計日誌 Enable audit logs', type: 'bool' },
+      { path: 'logs.channel', label: '日誌頻道 Log channel', type: 'channel', filter: 'text' },
+    ],
+  },
+  {
+    key: 'leveling', icon: '📈', title: '等級系統 Leveling', desc: '成員發言獲得經驗值與等級（/rank 查看）｜Earn XP by chatting, check with /rank',
+    status: (s) => s.leveling.enabled,
+    fields: [
+      { path: 'leveling.enabled', label: '啟用等級系統 Enable leveling', type: 'bool' },
+      { path: 'leveling.announce', label: '升級時公告 Announce level-ups', type: 'bool' },
+      { path: 'leveling.channel', label: '升級公告頻道 Level-up channel', type: 'channel', filter: 'text' },
+      { path: 'leveling.xpPerMessage', label: '每則訊息經驗值 XP per message', type: 'number' },
+    ],
+  },
+  {
+    key: 'economy', icon: '💰', title: '經濟系統 Economy', desc: '每日獎勵、打工、賭博、商店等｜Daily rewards, work, gambling, shop',
+    status: (s) => s.economy.enabled,
+    fields: [
+      { path: 'economy.enabled', label: '啟用經濟系統 Enable economy', type: 'bool' },
+      { path: 'economy.currency', label: '貨幣符號 Currency symbol', type: 'text' },
+      { path: 'economy.daily', label: '每日獎勵金額 Daily reward', type: 'number' },
+      { path: 'economy.workMin', label: '打工最低金額 Work min', type: 'number' },
+      { path: 'economy.workMax', label: '打工最高金額 Work max', type: 'number' },
+    ],
+  },
+  {
+    key: 'tempVoice', icon: '🔊', title: '臨時語音頻道 Temp Voice', desc: '成員加入指定語音頻道後自動生成私人語音房｜Join the create channel to spawn a private voice room',
+    status: (s) => s.tempVoice.enabled && !!s.tempVoice.createChannel,
+    fields: [
+      { path: 'tempVoice.enabled', label: '啟用臨時語音 Enable temp voice', type: 'bool' },
+      { path: 'tempVoice.createChannel', label: '「建立頻道」（成員加入這裡）Create channel', type: 'channel', filter: 'voice' },
+    ],
+  },
+  {
+    key: 'stats', icon: '📊', title: '統計頻道 Server Stats', desc: '自動更新成員/線上/加成數的語音頻道｜Voice channels showing member/online/booster counts',
+    status: (s) => s.stats.enabled && !!s.stats.category,
+    fields: [
+      { path: 'stats.enabled', label: '啟用統計頻道 Enable stats channels', type: 'bool' },
+      { path: 'stats.category', label: '統計頻道所在分類 Category', type: 'channel', filter: 'category' },
+    ],
+    actions: [{ label: '📊 建立統計頻道（使用所選分類）Create stats channels', fn: 'statsCreate' }],
+  },
+  {
+    key: 'birthdays', icon: '🎂', title: '生日系統 Birthdays', desc: '成員用 /birthday set 設定生日，當天自動祝賀｜Members set their birthday, auto-celebrate on the day',
+    status: (s) => !!s.birthdays.channel,
+    fields: [
+      { path: 'birthdays.channel', label: '生日公告頻道 Birthday channel', type: 'channel', filter: 'text' },
+      { path: 'birthdays.role', label: '生日當天發放的身分組 Birthday role', type: 'role' },
+    ],
+  },
+  {
+    key: 'music', icon: '🎵', title: '音樂 Music', desc: '播放 YouTube 音樂（需系統安裝 ffmpeg）｜Play YouTube music (requires ffmpeg)',
+    status: (s) => s.music.enabled,
+    fields: [
+      { path: 'music.djRole', label: 'DJ 身分組（管理播放）DJ role', type: 'role' },
+      { path: 'music.defaultVolume', label: '預設音量（0-100）Default volume (0-100)', type: 'number' },
+    ],
+  },
+];
+
+function getPath(obj, p) { return p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj); }
+function setPath(obj, p, v) {
+  const parts = p.split('.'); let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) { if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object') cur[parts[i]] = {}; cur = cur[parts[i]]; }
+  cur[parts[parts.length - 1]] = v;
+}
+
+function deepMerge(base, patch) {
+  const out = { ...base };
+  for (const k of Object.keys(patch)) {
+    if (patch[k] && typeof patch[k] === 'object' && !Array.isArray(patch[k]) && out[k] && typeof out[k] === 'object' && !Array.isArray(out[k])) {
+      out[k] = deepMerge(out[k], patch[k]);
+    } else {
+      out[k] = patch[k];
+    }
+  }
+  return out;
+}
+
+/** 頻道下拉選單（依分類分組） */
+function channelOptions(channels, filter, val) {
+  const list = channels.filter((c) => {
+    if (filter === 'text') return c.isText && !c.isCategory;
+    if (filter === 'voice') return c.isVoice;
+    if (filter === 'category') return c.isCategory;
+    return !c.isCategory;
+  });
+  if (filter === 'category') {
+    return list.map((c) => `<option value="${c.id}" ${val === c.id ? 'selected' : ''}>${c.name}</option>`).join('');
+  }
+  const groups = new Map();
+  const ungrouped = [];
+  for (const c of list) {
+    const cat = c.parentId ? channels.find((x) => x.id === c.parentId) : null;
+    if (cat) {
+      if (!groups.has(cat.name)) groups.set(cat.name, []);
+      groups.get(cat.name).push(c);
+    } else {
+      ungrouped.push(c);
+    }
+  }
+  let html = '';
+  for (const [catName, items] of groups) {
+    html += `<optgroup label="${esc(catName)}">${items.map((c) => `<option value="${c.id}" ${val === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</optgroup>`;
+  }
+  if (ungrouped.length) {
+    html += `<optgroup label="未分類">${ungrouped.map((c) => `<option value="${c.id}" ${val === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</optgroup>`;
+  }
+  return html;
+}
+
+function renderField(f) {
+  const val = getPath(sCache, f.path);
+  if (f.type === 'bool') {
+    return `<div class="field"><div class="toggle-row"><label>${f.label}</label><input type="checkbox" data-path="${f.path}" ${val ? 'checked' : ''}></div></div>`;
+  }
+  if (f.type === 'text') {
+    return `<div class="field"><label>${f.label}</label><input type="text" data-path="${f.path}" value="${escAttr(val || '')}"></div>`;
+  }
+  if (f.type === 'textarea') {
+    return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label><textarea data-path="${f.path}" rows="3" spellcheck="false">${escAttr(val || '')}</textarea></div>`;
+  }
+  if (f.type === 'number') {
+    return `<div class="field"><label>${f.label}</label><input type="number" data-path="${f.path}" value="${val ?? ''}" min="0"></div>`;
+  }
+  if (f.type === 'select') {
+    return `<div class="field"><label>${f.label}</label><select data-path="${f.path}">${(f.options || []).map((o) => `<option value="${o.value}" ${val === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}</select></div>`;
+  }
+  if (f.type === 'roles') {
+    return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label><select multiple data-path="${f.path}" size="5">${rolesCache.map((r) => `<option value="${r.id}" ${(val || []).includes(r.id) ? 'selected' : ''}>${r.name}</option>`).join('')}</select><div style="color:var(--muted);font-size:11px;margin-top:5px">按住 Ctrl 可多選</div></div>`;
+  }
+  if (f.type === 'words') {
+    const chips = (val || []).map((w) => `<span class="chip" data-word="${escAttr(w)}">${esc(w)} <span class="chip-x" onclick="removeWord(this)">×</span></span>`).join('');
+    return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label>
+      <div class="words-box" data-words>${chips || '<span style="color:var(--muted);font-size:12px">（尚未設定）</span>'}</div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input type="text" class="word-input" placeholder="輸入字詞後按新增…" style="flex:1">
+        <button type="button" class="btn" onclick="addWord(this)">＋ 新增</button>
+      </div></div>`;
+  }
+  if (f.type === 'channel') {
+    return `<div class="field"><label>${f.label}</label><select data-path="${f.path}"><option value="">（不設定）</option>${channelOptions(channelsCache, f.filter, val)}</select></div>`;
+  }
+  if (f.type === 'role') {
+    return `<div class="field"><label>${f.label}</label><select data-path="${f.path}"><option value="">（不設定）</option>${rolesCache.map((r) => `<option value="${r.id}" ${val === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}</select></div>`;
+  }
+  return '';
+}
+
+function addWord(btn) {
+  const card = btn.closest('.feature-card');
+  if (!card) return;
+  const input = card.querySelector('.word-input');
+  const w = (input.value || '').trim();
+  if (!w) return;
+  const box = card.querySelector('.words-box');
+  if (!box) return;
+  if ([...box.querySelectorAll('.chip')].some((c) => c.dataset.word === w)) { toast('此字詞已存在', 'err'); return; }
+  const empty = box.querySelector('span[style]');
+  if (empty) box.removeChild(empty);
+  const span = document.createElement('span');
+  span.className = 'chip';
+  span.dataset.word = w;
+  span.innerHTML = `${esc(w)} <span class="chip-x" onclick="removeWord(this)">×</span>`;
+  box.appendChild(span);
+  input.value = '';
+  input.focus();
+}
+
+function removeWord(el) {
+  el.closest('.chip').remove();
+}
+
+function renderQuickCheck() {
+  const missing = FEATURES.filter((f) => !f.status(sCache));
+  const done = FEATURES.length - missing.length;
+  $('#quickCheck').innerHTML = missing.length === 0
+    ? `<span class="pill on">✅ 全部 ${FEATURES.length} 個功能都已設定完成 All features are set up</span>`
+    : `<span style="font-size:13px;color:var(--muted)">尚未設定 Not set up（${done}/${FEATURES.length}）：</span>` +
+      missing.map((f) => `<span class="pill off" style="margin:2px">${f.icon} ${f.title}</span>`).join('');
+}
+
+function renderCards() {
+  $('#featureCards').innerHTML = FEATURES.map((f) => {
+    const enabled = f.status(sCache);
+    const pill = enabled ? '<span class="pill on">✅ 已設定 Set</span>' : '<span class="pill off">尚未設定 Not set</span>';
+    return `<div class="feature-card" data-key="${f.key}">
+      <div class="card-head">
+        <div>
+          <span style="font-size:17px;font-weight:700">${f.icon} ${f.title}</span>
+          <div class="fdesc">${f.desc}</div>
+        </div>
+        ${pill}
+      </div>
+      <div class="form-grid">${f.fields.map(renderField).join('')}</div>
+      ${f.hint ? `<div class="fhint">💡 ${f.hint}</div>` : ''}
+      <div class="card-actions">
+        ${(f.actions || []).map((a) => `<button class="btn primary" onclick="${a.fn}()">${a.label}</button>`).join('')}
+        <button class="btn" onclick="saveCard('${f.key}')">💾 儲存此功能設定 Save</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function cardEl(key) { return document.querySelector(`.feature-card[data-key="${key}"]`); }
+
+async function openSettingsCenter(guildId) {
+  currentGuildId = guildId;
+  try {
+    const [guild, settings, channels, roles] = await Promise.all([
+      api('/api/guild/' + guildId),
+      api('/api/settings/' + guildId),
+      api('/api/guild/' + guildId + '/channels'),
+      api('/api/guild/' + guildId + '/roles'),
+    ]);
+    sCache = settings;
+    channelsCache = channels;
+    rolesCache = roles;
+    $('#settingsTitle').textContent = '⚙️ 設定中心 Settings Center：' + guild.name;
+    $('#settingsSubtitle').textContent = '每個功能一張卡片：勾選啟用 → 選頻道/身分組 → 按「儲存」。需要發送面板的功能有專用按鈕。One card per feature: enable → pick channel/role → Save. Features with panels have dedicated buttons.';
+    $('#settingsJson').value = JSON.stringify(settings, null, 2);
+    showView('settings');
+    renderQuickCheck();
+    renderCards();
+  } catch (e) { if (e.message !== 'unauthorized') toast('載入設定失敗：' + e.message, 'err'); }
+}
+
+function saveCard(key) {
+  const card = cardEl(key);
+  if (!card) return;
+  const patch = {};
+  card.querySelectorAll('[data-path]').forEach((el) => {
+    const path = el.dataset.path;
+    let v;
+    if (el.type === 'checkbox') v = el.checked;
+    else if (el.type === 'number') v = el.value === '' ? null : Number(el.value);
+    else if (el.multiple) v = [...el.selectedOptions].map((o) => o.value);
+    else if (el.tagName === 'TEXTAREA') v = el.value;
+    else v = el.value === '' ? null : el.value;
+    setPath(patch, path, v);
+  });
+  const wb = card.querySelector('.words-box');
+  if (wb) setPath(patch, 'automod.bannedWords', [...wb.querySelectorAll('.chip')].map((c) => c.dataset.word));
+  const merged = deepMerge(sCache, patch);
+  api('/api/settings/' + currentGuildId, { method: 'PUT', body: JSON.stringify(merged) })
+    .then((r) => {
+      sCache = r.settings;
+      $('#settingsJson').value = JSON.stringify(r.settings, null, 2);
+      renderQuickCheck();
+      renderCards();
+      toast('✅ 設定已儲存', 'ok');
+    })
+    .catch((e) => toast('儲存失敗：' + e.message, 'err'));
+}
+
+/* ===== 卡片動作按鈕 ===== */
+async function verifySend() {
+  try {
+    const r = await api(`/api/guild/${currentGuildId}/verify/send`, { method: 'POST' });
+    toast(r.message, 'ok');
+  } catch (e) { toast('發送失敗：' + e.message, 'err'); }
+}
+
+async function ticketsSend() {
+  try {
+    const r = await api(`/api/guild/${currentGuildId}/tickets/send`, { method: 'POST' });
+    toast(r.message, 'ok');
+  } catch (e) { toast('發送失敗：' + e.message, 'err'); }
+}
+
+async function welcomeTest() {
+  const sel = cardEl('welcome').querySelector('[data-path="welcome.channel"]');
+  const channel = sel ? sel.value : '';
+  if (!channel) { toast('請先選擇「歡迎頻道」再傳送測試', 'err'); return; }
+  try {
+    const r = await api(`/api/guild/${currentGuildId}/welcome/test`, { method: 'POST', body: JSON.stringify({ channel }) });
+    toast(r.message, 'ok');
+  } catch (e) { toast('傳送失敗：' + e.message, 'err'); }
+}
+
+async function statsCreate() {
+  const sel = cardEl('stats').querySelector('[data-path="stats.category"]');
+  const category = sel ? sel.value : '';
+  if (!category) { toast('請先選擇「統計頻道所在分類」', 'err'); return; }
+  try {
+    const r = await api(`/api/guild/${currentGuildId}/stats/setup`, { method: 'POST', body: JSON.stringify({ category }) });
+    toast(r.message || '✅ 統計頻道已建立', 'ok');
+  } catch (e) { toast('建立失敗：' + e.message, 'err'); }
+}
+
+/* ===== 進階 JSON ===== */
+function resetSettings() {
+  if (!confirm('確定要將此伺服器所有設定重設為預設值嗎？')) return;
+  api('/api/settings/' + currentGuildId + '/reset', { method: 'POST' })
+    .then((r) => {
+      sCache = r.settings;
+      $('#settingsJson').value = JSON.stringify(r.settings, null, 2);
+      renderQuickCheck();
+      renderCards();
+      toast('已重設為預設', 'ok');
+    })
+    .catch((e) => toast('重設失敗：' + e.message, 'err'));
+}
+
+function saveRawJson() {
+  let obj;
+  try { obj = JSON.parse($('#settingsJson').value); } catch (e) { toast('❌ JSON 格式錯誤', 'err'); return; }
+  api('/api/settings/' + currentGuildId, { method: 'PUT', body: JSON.stringify(obj) })
+    .then((r) => { sCache = r.settings; renderQuickCheck(); renderCards(); toast('✅ 已儲存', 'ok'); })
+    .catch((e) => toast('儲存失敗：' + e.message, 'err'));
+}
+
+/* ===== 資料庫頁 ===== */
+async function loadCollections() {
+  try {
+    const list = await api('/api/collections');
+    $('#colList').innerHTML = list.map((c) =>
+      `<div class="col-item ${c.name === currentCol ? 'active' : ''}" onclick="openCollection('${c.name}')"><span>🗂️ ${c.name}</span><span class="cnt">${c.size}</span></div>`
+    ).join('') || '<div class="empty">（無資料）</div>';
+  } catch (e) { if (e.message !== 'unauthorized') toast('載入失敗：' + e.message, 'err'); }
+}
+
+async function openCollection(name) {
+  currentCol = name;
+  loadCollections();
+  try {
+    const r = await api('/api/collection/' + name);
+    const box = $('#dbTable');
+    if (!r.entries.length) { box.innerHTML = '<div class="empty">此 collection 為空</div>'; return; }
+    const sample = r.entries[0];
+    const previewKeys = Object.keys(sample).filter((k) => k !== 'id').slice(0, 3);
+    box.innerHTML = `<table>
+      <thead><tr><th>Key</th>${previewKeys.map((k) => `<th>${k}</th>`).join('')}<th>動作</th></tr></thead>
+      <tbody>${r.entries.map((e) => {
+        const rest = { ...e }; delete rest.id;
+        return `<tr>
+          <td class="key">${e.id}</td>
+          ${previewKeys.map((k) => `<td class="val">${esc(JSON.stringify(rest[k]))}</td>`).join('')}
+          <td class="act">
+            <button class="row-btn" onclick="openEntry('${name}','${escAttr(e.id)}')">編輯</button>
+            <button class="row-btn del" onclick="deleteEntryDirect('${name}','${escAttr(e.id)}')">刪除</button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch (e) { if (e.message !== 'unauthorized') toast('載入失敗：' + e.message, 'err'); }
+}
+
+function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+async function openEntry(col, key) {
+  currentCol = col; currentKey = key;
+  $('#editTitle').textContent = `編輯 ${col} / ${key}`;
+  try {
+    const v = await api('/api/collection/' + col + '/' + encodeURIComponent(key));
+    $('#editJson').value = JSON.stringify(v, null, 2);
+    $('#editJson').classList.remove('json-bad');
+    $('#editOverlay').classList.add('show');
+  } catch (e) { toast('載入失敗：' + e.message, 'err'); }
+}
+
+function saveEntry() {
+  let obj;
+  try { obj = JSON.parse($('#editJson').value); } catch (e) { toast('❌ JSON 格式錯誤', 'err'); $('#editJson').classList.add('json-bad'); return; }
+  $('#editJson').classList.remove('json-bad');
+  api('/api/collection/' + currentCol + '/' + encodeURIComponent(currentKey), { method: 'PUT', body: JSON.stringify(obj) })
+    .then(() => { toast('✅ 已儲存', 'ok'); closeModal('editOverlay'); openCollection(currentCol); })
+    .catch((e) => toast('儲存失敗：' + e.message, 'err'));
+}
+
+function deleteEntry() {
+  if (!confirm('確定刪除此筆資料？')) return;
+  api('/api/collection/' + currentCol + '/' + encodeURIComponent(currentKey), { method: 'DELETE' })
+    .then(() => { toast('已刪除', 'ok'); closeModal('editOverlay'); openCollection(currentCol); })
+    .catch((e) => toast('刪除失敗：' + e.message, 'err'));
+}
+
+async function deleteEntryDirect(col, key) {
+  if (!confirm(`確定刪除 ${col} / ${key} ？`)) return;
+  try {
+    await api('/api/collection/' + col + '/' + encodeURIComponent(key), { method: 'DELETE' });
+    toast('已刪除', 'ok');
+    openCollection(col);
+  } catch (e) { toast('刪除失敗：' + e.message, 'err'); }
+}
+
+/* ===== 備份頁 ===== */
+async function downloadBackup() {
+  try {
+    const res = await fetch('/api/backup', { headers: { Authorization: 'Bearer ' + TOKEN } });
+    if (res.status === 401) { $('#loginOverlay').classList.add('show'); return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'backup-' + Date.now() + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('✅ 備份已下載', 'ok');
+  } catch (e) { toast('備份失敗：' + e.message, 'err'); }
+}
+
+$('#restoreFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('⚠️ 還原會覆蓋目前所有資料，確定繼續？')) { e.target.value = ''; return; }
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data.collections) throw new Error('不是有效的備份檔');
+    const r = await api('/api/restore', { method: 'POST', body: JSON.stringify({ collections: data.collections }) });
+    toast(`✅ 已還原 ${r.collections} 個 collection（${r.entries} 筆）`, 'ok');
+  } catch (err) { toast('還原失敗：' + err.message, 'err'); }
+  e.target.value = '';
+});
+
+/* ===== 共用 ===== */
+function closeModal(id) { $('#' + id).classList.remove('show'); }
+document.querySelectorAll('.overlay').forEach((o) => {
+  o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('show'); });
+});
+
+/* ===== 初始化 ===== */
+(async function init() {
+  if (TOKEN) {
+    try { await api('/api/status'); $('#loginOverlay').classList.remove('show'); }
+    catch (e) { /* 顯示登入 */ }
+  }
+  loadStatus();
+  // 進入日誌頁時開啟 SSE
+  document.querySelector('[data-view="logs"]').addEventListener('click', () => setTimeout(openLogs, 50));
+})();
+</script>
+</body>
+</html>

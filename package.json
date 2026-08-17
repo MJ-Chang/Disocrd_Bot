@@ -1,0 +1,30 @@
+{
+  "name": "disocrd-bot",
+  "version": "1.0.0",
+  "description": "功能完整的 Discord 機器人：驗證、歡迎訊息、自動審核、客服表單、管理、等級、經濟、抽獎、音樂等",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "node scripts/check.js",
+    "dry": "node src/index.js --dry",
+    "test:panel": "node scripts/test-panel.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord.js"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "play-dl": "^1.9.7",
+    "@discordjs/voice": "^0.18.0",
+    "express": "^4.19.2"
+  }
+}

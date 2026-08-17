@@ -10,6 +10,23 @@ const DEFAULT_GOODBYE = () => t('{user} 離開了伺服器。', '{user} left the
 const DEFAULT_DM = () => t('歡迎加入 **{guild}**！希望你玩得開心！', 'Welcome to **{guild}**! Hope you enjoy your stay!');
 
 /**
+ * 驗證提示：驗證功能啟用時，在歡迎訊息後附加「請到驗證頻道驗證」的提示。
+ * 自訂文字 welcome.verifyHint 支援 {channel} 變數；留空/null 時用預設雙語提示。
+ */
+function verifyHint(settings) {
+  const ch = settings.verify?.channel;
+  if (!settings.verify?.enabled || !ch) return '';
+  const custom = settings.welcome?.verifyHint;
+  if (custom && custom.trim()) {
+    return `\n\n${custom.replaceAll('{channel}', `<#${ch}>`)}`;
+  }
+  return t(
+    `\n\n🔐 請先到 <#${ch}> 完成驗證，即可解鎖全部頻道！`,
+    `\n\n🔐 Please verify in <#${ch}> to unlock all channels!`
+  );
+}
+
+/**
  * 將樣板中的變數替換為成員資料
  * 支援：{user}=使用者名稱、{mention}=<@id>、{tag}=使用者標籤、{guild}=伺服器名、{count}=成員數
  * @param {string|null|undefined} template
@@ -47,7 +64,7 @@ async function onGuildMemberAdd(client, member) {
     if (settings.welcome?.enabled && settings.welcome.channel) {
       const channel = member.guild.channels.cache.get(settings.welcome.channel);
       if (channel && channel.isTextBased()) {
-        const text = settings.welcome.message || DEFAULT_WELCOME();
+        const text = (settings.welcome.message || DEFAULT_WELCOME()) + verifyHint(settings);
         const embed = success(t('🎉 歡迎加入！', '🎉 Welcome!'), renderTemplate(text, member))
           .setThumbnail(member.user.displayAvatarURL({ size: 256 }));
         withFooter(embed, client);
@@ -58,7 +75,7 @@ async function onGuildMemberAdd(client, member) {
     // ==== 私訊歡迎 ====
     if (settings.welcome?.dm) {
       try {
-        const text = settings.welcome.dmMessage || settings.welcome.message || DEFAULT_DM();
+        const text = (settings.welcome.dmMessage || settings.welcome.message || DEFAULT_DM()) + verifyHint(settings);
         await member.send(renderTemplate(text, member));
       } catch (e) {
         // 私訊失敗（關閉私訊、被封鎖等）靜默忽略
@@ -124,7 +141,7 @@ async function onGuildMemberRemove(client, member) {
  */
 async function sendTest(client, guild, channel) {
   const settings = await client.settings.get(guild.id);
-  const text = settings.welcome?.message || DEFAULT_WELCOME();
+  const text = (settings.welcome?.message || DEFAULT_WELCOME()) + verifyHint(settings);
   const embed = success(t('🎉 歡迎加入！', '🎉 Welcome!'), renderTemplate(text, { user: client.user, guild }))
     .setThumbnail(client.user.displayAvatarURL({ size: 256 }));
   withFooter(embed, client, t('測試歡迎訊息', 'Test welcome message'));
@@ -132,4 +149,4 @@ async function sendTest(client, guild, channel) {
   return true;
 }
 
-module.exports = { renderTemplate, onGuildMemberAdd, onGuildMemberRemove, sendTest, DEFAULT_WELCOME, DEFAULT_GOODBYE };
+module.exports = { renderTemplate, verifyHint, onGuildMemberAdd, onGuildMemberRemove, sendTest, DEFAULT_WELCOME, DEFAULT_GOODBYE };

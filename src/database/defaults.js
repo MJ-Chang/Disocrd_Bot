@@ -7,6 +7,7 @@ const DEFAULTS = {
     message: null,
     dm: false,
     dmMessage: null,
+    verifyHint: null,
     deleteAfter: null,
   },
   goodbye: {

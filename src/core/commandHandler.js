@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { REST, Routes } = require('discord.js');
 const config = require('../config');
 const { logger } = require('../utils/logger');
@@ -58,6 +59,23 @@ async function loadCommands(client) {
 async function registerCommands(client) {
   if (!config.token) return;
   const commands = [...client.commands.values()].map((c) => c.data.toJSON());
+  const scope = config.guildId || 'global';
+
+  // 指令定義與註冊目標都未變更時，略過註冊（避免每次重啟都觸發 Discord 速率限制，
+  // 導致用戶端出現「此命令已過期，請過幾分鐘後再試一次」）
+  const hash = crypto.createHash('sha256').update(JSON.stringify({ scope, commands })).digest('hex');
+  const hashFile = path.join(config.dataDir, 'commands-hash.json');
+  let last = null;
+  try {
+    last = JSON.parse(fs.readFileSync(hashFile, 'utf8'));
+  } catch (e) {
+    /* 無紀錄 */
+  }
+  if (last && last.scope === scope && last.hash === hash) {
+    logger.info('commands', '指令定義未變更，略過註冊（避免觸發 Discord 速率限制）');
+    return;
+  }
+
   const rest = new REST({ version: '10' }).setToken(config.token);
   try {
     if (config.guildId) {
@@ -66,6 +84,12 @@ async function registerCommands(client) {
     } else {
       await rest.put(Routes.applicationCommands(config.clientId), { body: commands });
       logger.info('commands', `已註冊 ${commands.length} 個全域指令（可能需數小時生效）`);
+    }
+    try {
+      fs.mkdirSync(config.dataDir, { recursive: true });
+      fs.writeFileSync(hashFile, JSON.stringify({ scope, hash, at: new Date().toISOString() }));
+    } catch (e) {
+      /* 快取寫入失敗不影響註冊 */
     }
   } catch (e) {
     logger.error('commands', `註冊指令失敗：${e.message}`);

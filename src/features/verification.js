@@ -206,13 +206,16 @@ async function sendTestReminder(client, guild) {
       .replaceAll('{guild}', guild.name)
       .replaceAll('{count}', String(count));
   } else {
-    const chPart = verifyChannel
-      ? t(`請到 ${verifyChannel} 點擊按鈕`, `Click the button in ${verifyChannel}`)
-      : t('請在驗證頻道點擊按鈕', 'Click the verify button in the verify channel');
-    text = t(
-      `${fakeUsers} 你還沒有完成驗證！${chPart} 完成驗證即可解鎖全部頻道。`,
-      `${fakeUsers} You haven't verified yet! ${chPart} to unlock all channels.`
-    );
+    // 完整句直接雙語，避免嵌套 t() 造成文字重複
+    text = verifyChannel
+      ? t(
+          `${fakeUsers} 你還沒有完成驗證！請到 ${verifyChannel} 點擊上方按鈕完成驗證，解鎖所有頻道。`,
+          `${fakeUsers} You haven't verified yet! Please go to ${verifyChannel} and click the button above to verify and unlock all channels.`
+        )
+      : t(
+          `${fakeUsers} 你還沒有完成驗證！請到驗證頻道點擊按鈕完成驗證，解鎖所有頻道。`,
+          `${fakeUsers} You haven't verified yet! Please go to the verify channel and click the button to verify and unlock all channels.`
+        );
   }
 
   await channel.send({
@@ -259,13 +262,17 @@ async function checkReminders(client) {
           .replaceAll('{guild}', guild.name)
           .replaceAll('{count}', String(members.size));
       } else {
-        const chPart = verifyChannel
-          ? t(`請到 ${verifyChannel} 點擊按鈕`, `Click the button in ${verifyChannel}`)
-          : t('請在驗證頻道點擊按鈕', 'Click the verify button in the verify channel');
-        text = t(
-          `${mentioned.map((m) => m.toString()).join(' ')} 你還沒有完成驗證！${chPart} 完成驗證即可解鎖全部頻道。${extra}`,
-          `${mentioned.map((m) => m.toString()).join(' ')} You haven't verified yet! ${chPart} to unlock all channels.${extra}`
-        );
+        const users = mentioned.map((m) => m.toString()).join(' ');
+        // 完整句直接雙語，避免嵌套 t() 造成文字重複
+        text = verifyChannel
+          ? t(
+              `${users} 你還沒有完成驗證！請到 ${verifyChannel} 點擊上方按鈕完成驗證，解鎖所有頻道。${extra}`,
+              `${users} You haven't verified yet! Please go to ${verifyChannel} and click the button above to verify and unlock all channels.${extra}`
+            )
+          : t(
+              `${users} 你還沒有完成驗證！請到驗證頻道點擊按鈕完成驗證，解鎖所有頻道。${extra}`,
+              `${users} You haven't verified yet! Please go to the verify channel and click the button to verify and unlock all channels.${extra}`
+            );
       }
       await channel.send({ content: text });
     } catch (e) {

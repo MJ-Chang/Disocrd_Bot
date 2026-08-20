@@ -90,28 +90,50 @@ async function checkRepo(client, guild, channel, repo, g) {
   return { ok: true, notified: false, first: !record.lastSeen };
 }
 
+/** 正規化庫設定（相容舊格式：純字串 → {name}；缺欄位補預設） */
+function normalizeRepo(r, defaultChannel) {
+  const entry = typeof r === 'string' ? { name: r } : r || {};
+  return {
+    name: String(entry.name || '').trim(),
+    channel: entry.channel || defaultChannel || null,
+    watchType: entry.watchType || 'releases',
+    branch: entry.branch || 'main',
+  };
+}
+
 /** 檢查單一伺服器的所有庫（供控制面板「立即檢查」使用） */
 async function checkGuild(client, guild) {
   const s = await client.settings.get(guild.id);
   const g = s.githubWatch || {};
-  if (!g.enabled || !g.channel || !Array.isArray(g.repos) || g.repos.length === 0) {
-    return { ok: false, error: t('請先在設定中心啟用 GitHub 通知、選擇頻道並加入至少一個庫。', "Enable GitHub notifications, pick a channel and add at least one repo in the settings center.") };
+  const defaultChannel = g.defaultChannel || g.channel || null; // g.channel 相容舊格式
+  if (!g.enabled || !Array.isArray(g.repos) || g.repos.length === 0) {
+    return { ok: false, error: t('請先在設定中心啟用 GitHub 通知並加入至少一個庫。', 'Enable GitHub notifications and add at least one repo in the settings center.') };
   }
-  const channel = guild.channels.cache.get(g.channel);
-  if (!channel || !channel.isTextBased()) return { ok: false, error: t('找不到通知頻道。', 'Notification channel not found.') };
+
+  const repos = g.repos.map((r) => normalizeRepo(r, defaultChannel)).filter((r) => r.name);
+  if (repos.length === 0) {
+    return { ok: false, error: t('庫清單格式錯誤，請確認每個庫都是 owner/repo 格式。', 'Invalid repo list. Make sure each repo is in owner/repo format.') };
+  }
 
   let notified = 0;
   let first = 0;
-  for (const repo of g.repos) {
+  let skipped = 0;
+  for (const repo of repos) {
+    const channel = repo.channel ? guild.channels.cache.get(repo.channel) : null;
+    if (!channel || !channel.isTextBased()) {
+      logger.warn('github', `${repo.name}：找不到通知頻道，略過`);
+      skipped += 1;
+      continue;
+    }
     try {
-      const r = await checkRepo(client, guild, channel, repo.trim(), g);
+      const r = await checkRepo(client, guild, channel, repo.name, repo);
       if (r.notified) notified += 1;
       if (r.first) first += 1;
     } catch (e) {
-      logger.warn('github', `檢查 ${repo} 失敗：${e.message}`);
+      logger.warn('github', `檢查 ${repo.name} 失敗：${e.message}`);
     }
   }
-  return { ok: true, notified, first, total: g.repos.length };
+  return { ok: true, notified, first, total: repos.length, skipped };
 }
 
 /** 檢查所有伺服器（排程用） */

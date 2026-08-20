@@ -115,6 +115,12 @@
   .feature-card .fhint { background: rgba(88,101,242,.12); border: 1px solid rgba(88,101,242,.3); color: var(--cyan); font-size: 12.5px; border-radius: 8px; padding: 8px 12px; margin-top: 12px; }
   .feature-card .card-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
   .words-box { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; align-items: center; }
+  .repo-rows { display: flex; flex-direction: column; gap: 8px; }
+  .repo-row { display: flex; gap: 8px; align-items: center; }
+  .repo-row input, .repo-row select {
+    background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 9px; font-size: 12.5px; font-family: inherit; min-width: 0;
+  }
   .chip {
     background: var(--accent); color: #fff; font-size: 12px; border-radius: 20px;
     padding: 3px 10px; display: inline-flex; align-items: center; gap: 6px;
@@ -640,17 +646,12 @@ const FEATURES = [
     hint: '點「發送指令說明」後，頻道會出現所有指令的分類說明（自動隱藏管理指令）｜Sends a categorized command list (admin commands hidden)',
   },
   {
-    key: 'github', icon: '🐙', title: 'GitHub 更新通知 GitHub Watcher', desc: '監控 GitHub 庫，有新版本/新提交就通知到指定頻道（每 10 分鐘檢查）｜Watch repos, notify on new releases/commits (every 10 min)',
-    status: (s) => s.githubWatch.enabled && !!s.githubWatch.channel && (s.githubWatch.repos || []).length > 0,
+    key: 'github', icon: '🐙', title: 'GitHub 更新通知 GitHub Watcher', desc: '監控 GitHub 庫，每個庫可指定不同通知頻道｜Watch repos, each repo can notify a different channel',
+    status: (s) => s.githubWatch.enabled && (s.githubWatch.repos || []).length > 0,
     fields: [
       { path: 'githubWatch.enabled', label: '啟用 Enable', type: 'bool' },
-      { path: 'githubWatch.channel', label: '通知頻道 Notification channel', type: 'channel', filter: 'text' },
-      { path: 'githubWatch.watchType', label: '監看類型 Watch type', type: 'select', options: [
-        { value: 'releases', label: '🎉 新版本 Releases' },
-        { value: 'commits', label: '🔀 新提交 Commits' },
-      ] },
-      { path: 'githubWatch.branch', label: '分支（監看 commits 時用）Branch (for commits)', type: 'text' },
-      { path: 'githubWatch.repos', label: 'GitHub 庫（每行一個，格式 owner/repo）Repos (one per line)', type: 'repolist' },
+      { path: 'githubWatch.defaultChannel', label: '預設通知頻道（沒指定頻道的庫用這個）Default channel', type: 'channel', filter: 'text' },
+      { path: 'githubWatch.repos', label: '監看的庫（每個庫可指定自己的頻道/類型/分支）Repos', type: 'repos' },
     ],
     actions: [{ label: '🔍 立即檢查一次 Check now', fn: 'githubCheck' }],
     hint: '第一次「立即檢查」只建立基準線不發通知，之後有新更新才會通知｜First check only sets the baseline; notifications start from the next update',
@@ -723,6 +724,14 @@ function renderField(f) {
     const lines = Array.isArray(val) ? val.join('\n') : (val || '');
     return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label><textarea data-path="${f.path}" data-array="1" rows="4" spellcheck="false" placeholder="例如 e.g.&#10;discordjs/discord.js&#10;nodejs/node">${escAttr(lines)}</textarea></div>`;
   }
+  if (f.type === 'repos') {
+    const repos = Array.isArray(val) ? val : [];
+    const rows = repos.map((r, i) => repoRowHtml(r, i)).join('');
+    return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label>
+      <div class="repo-rows" data-repos>${rows || '<div class="empty" style="padding:10px">尚未加入任何庫｜No repos yet</div>'}</div>
+      <button type="button" class="btn" style="margin-top:8px" onclick="addRepoRow()">＋ 新增庫 Add repo</button>
+    </div>`;
+  }
   if (f.type === 'number') {
     return `<div class="field"><label>${f.label}</label><input type="number" data-path="${f.path}" value="${val ?? ''}" min="0"></div>`;
   }
@@ -772,6 +781,40 @@ function addWord(btn) {
 
 function removeWord(el) {
   el.closest('.chip').remove();
+}
+
+/* ===== GitHub 庫編輯器（每庫指定頻道/類型/分支） ===== */
+function repoRowHtml(r, i) {
+  const channelOpts = channelOptions(channelsCache, 'text', r.channel || '');
+  const isCommits = r.watchType === 'commits';
+  return `<div class="repo-row">
+    <input type="text" data-r="name" value="${escAttr(r.name || '')}" placeholder="owner/repo" style="flex:2">
+    <select data-r="channel" style="flex:2"><option value="">（預設頻道 default）</option>${channelOpts}</select>
+    <select data-r="type" style="flex:1.2">
+      <option value="releases" ${isCommits ? '' : 'selected'}>🎉 新版本 Releases</option>
+      <option value="commits" ${isCommits ? 'selected' : ''}>🔀 新提交 Commits</option>
+    </select>
+    <input type="text" data-r="branch" value="${escAttr(r.branch || 'main')}" placeholder="main" style="flex:0.8">
+    <button type="button" class="row-btn del" onclick="removeRepoRow(this)" title="刪除">🗑️</button>
+  </div>`;
+}
+
+function addRepoRow() {
+  const box = document.querySelector('#settingsForm .repo-rows[data-repos]');
+  if (!box) return;
+  const empty = box.querySelector('.empty');
+  if (empty) box.removeChild(empty);
+  box.insertAdjacentHTML('beforeend', repoRowHtml({ channel: '', watchType: 'releases', branch: 'main' }, 0));
+}
+
+function removeRepoRow(btn) {
+  const row = btn.closest('.repo-row');
+  if (!row) return;
+  row.remove();
+  const box = document.querySelector('#settingsForm .repo-rows[data-repos]');
+  if (box && !box.querySelector('.repo-row')) {
+    box.innerHTML = '<div class="empty" style="padding:10px">尚未加入任何庫｜No repos yet</div>';
+  }
 }
 
 function renderQuickCheck() {
@@ -845,6 +888,17 @@ function saveCard(key) {
   });
   const wb = card.querySelector('.words-box');
   if (wb) setPath(patch, 'automod.bannedWords', [...wb.querySelectorAll('.chip')].map((c) => c.dataset.word));
+  // GitHub 庫清單（每列：name/channel/type/branch）
+  const repoBox = card.querySelector('.repo-rows[data-repos]');
+  if (repoBox) {
+    const repos = [...repoBox.querySelectorAll('.repo-row')].map((row) => ({
+      name: row.querySelector('[data-r="name"]').value.trim(),
+      channel: row.querySelector('[data-r="channel"]').value || null,
+      watchType: row.querySelector('[data-r="type"]').value || 'releases',
+      branch: row.querySelector('[data-r="branch"]').value.trim() || 'main',
+    })).filter((r) => r.name);
+    setPath(patch, 'githubWatch.repos', repos);
+  }
   const merged = deepMerge(sCache, patch);
   api('/api/settings/' + currentGuildId, { method: 'PUT', body: JSON.stringify(merged) })
     .then((r) => {

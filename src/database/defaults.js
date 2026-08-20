@@ -141,10 +141,8 @@ const DEFAULTS = {
   },
   githubWatch: {
     enabled: false,
-    channel: null,
-    watchType: 'releases', // releases | commits
-    branch: 'main',
-    repos: [],
+    defaultChannel: null,
+    repos: [], // [{ name: 'owner/repo', channel: 頻道ID或null, watchType: 'releases'|'commits', branch: 'main' }]
   },
   modlogChannel: null,
 };

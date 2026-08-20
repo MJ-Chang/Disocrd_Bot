@@ -785,16 +785,17 @@ function removeWord(el) {
 
 /* ===== GitHub 庫編輯器（每庫指定頻道/類型/分支） ===== */
 function repoRowHtml(r, i) {
-  const channelOpts = channelOptions(channelsCache, 'text', r.channel || '');
-  const isCommits = r.watchType === 'commits';
+  const obj = typeof r === 'string' ? { name: r } : r || {}; // 相容舊格式（純字串）
+  const channelOpts = channelOptions(channelsCache, 'text', obj.channel || '');
+  const isCommits = obj.watchType === 'commits';
   return `<div class="repo-row">
-    <input type="text" data-r="name" value="${escAttr(r.name || '')}" placeholder="owner/repo" style="flex:2">
+    <input type="text" data-r="name" value="${escAttr(obj.name || '')}" placeholder="owner/repo" style="flex:2">
     <select data-r="channel" style="flex:2"><option value="">（預設頻道 default）</option>${channelOpts}</select>
     <select data-r="type" style="flex:1.2">
       <option value="releases" ${isCommits ? '' : 'selected'}>🎉 新版本 Releases</option>
       <option value="commits" ${isCommits ? 'selected' : ''}>🔀 新提交 Commits</option>
     </select>
-    <input type="text" data-r="branch" value="${escAttr(r.branch || 'main')}" placeholder="main" style="flex:0.8">
+    <input type="text" data-r="branch" value="${escAttr(obj.branch || 'main')}" placeholder="main" style="flex:0.8">
     <button type="button" class="row-btn del" onclick="removeRepoRow(this)" title="刪除">🗑️</button>
   </div>`;
 }

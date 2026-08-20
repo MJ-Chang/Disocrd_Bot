@@ -8,6 +8,9 @@ const PANEL_TITLE = () => t('🔐 身分驗證', '🔐 Verification');
 const PANEL_DESCRIPTION = () => t('點擊下方按鈕完成驗證', 'Click the button below to verify');
 const DEFAULT_LABEL = () => t('✅ 點我驗證', '✅ Verify me');
 
+/** 每伺服器上次提醒時間（避免短時間重複提醒） */
+const lastRemind = new Map();
+
 /** 建立面板 Embed（description 可為自訂規則/說明文字） */
 function buildEmbed(client, message) {
   const embed = new EmbedBuilder()
@@ -131,6 +134,13 @@ async function handleButton(client, interaction) {
     // 授予驗證身分組
     try {
       await member.roles.add(role);
+
+      // 移除「未驗證」身分組（若有設定）
+      const unverifiedId = settings.verify?.unverifiedRole;
+      if (unverifiedId && member.roles.cache.has(unverifiedId)) {
+        await member.roles.remove(unverifiedId).catch(() => {});
+      }
+
       await sendSuccess(interaction, t('驗證成功，歡迎加入！', 'Verification successful, welcome!'));
     } catch (e) {
       logger.error('verify', `授予驗證身分組失敗（${member.id}）：${e.message}`);
@@ -148,4 +158,84 @@ async function handleButton(client, interaction) {
   }
 }
 
-module.exports = { setup, deploy, updateMessage, handleButton };
+/**
+ * 成員加入：發放「未驗證」身分組（由 guildMemberAdd 事件呼叫）
+ */
+async function onGuildMemberAdd(client, member) {
+  try {
+    if (member.user.bot) return;
+    const s = await client.settings.get(member.guild.id);
+    const roleId = s.verify?.unverifiedRole;
+    if (!s.verify?.enabled || !roleId) return;
+    const role = member.guild.roles.cache.get(roleId);
+    if (!role) return;
+    const me = member.guild.members.me;
+    if (me && me.roles.highest.comparePositionTo(role) <= 0) return; // 階層不足
+    if (!member.roles.cache.has(roleId)) await member.roles.add(roleId);
+  } catch (e) {
+    logger.warn('verify', `授予未驗證身分組失敗（${member.id}）：${e.message}`);
+  }
+}
+
+/**
+ * 定期提醒未驗證成員（「不驗證就退出」壓力機制）。
+ * 每 5 分鐘檢查一次，每伺服器依 remindInterval（分鐘）間隔發送一次。
+ */
+async function checkReminders(client) {
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      const s = await client.settings.get(guild.id);
+      const v = s.verify || {};
+      if (!v.enabled || !v.remindEnabled || !v.remindChannel || !v.unverifiedRole) continue;
+
+      const intervalMs = (v.remindInterval || 60) * 60 * 1000;
+      const last = lastRemind.get(guild.id);
+      if (last && Date.now() - last < intervalMs) continue;
+
+      const channel = guild.channels.cache.get(v.remindChannel);
+      if (!channel || !channel.isTextBased()) continue;
+
+      const members = guild.members.cache.filter((m) => !m.user.bot && m.roles.cache.has(v.unverifiedRole));
+      lastRemind.set(guild.id, Date.now());
+      if (members.size === 0) continue;
+
+      const mentioned = [...members.values()].slice(0, 20);
+      const extra = members.size > 20 ? t(`…及另外 ${members.size - 20} 位成員`, `…and ${members.size - 20} more members`) : '';
+      const verifyChannel = v.channel ? `<#${v.channel}>` : '';
+
+      let text;
+      const custom = v.remindMessage;
+      if (custom && custom.trim()) {
+        text = custom
+          .replaceAll('{users}', mentioned.map((m) => m.toString()).join(' '))
+          .replaceAll('{channel}', verifyChannel)
+          .replaceAll('{guild}', guild.name)
+          .replaceAll('{count}', String(members.size));
+      } else {
+        const chPart = verifyChannel
+          ? t(`請到 ${verifyChannel} 點擊按鈕`, `Click the button in ${verifyChannel}`)
+          : t('請在驗證頻道點擊按鈕', 'Click the verify button in the verify channel');
+        text = t(
+          `${mentioned.map((m) => m.toString()).join(' ')} 你還沒有完成驗證！${chPart} 完成驗證即可解鎖全部頻道。${extra}`,
+          `${mentioned.map((m) => m.toString()).join(' ')} You haven't verified yet! ${chPart} to unlock all channels.${extra}`
+        );
+      }
+      await channel.send({ content: text });
+    } catch (e) {
+      logger.warn('verify', `提醒檢查失敗（${guild.id}）：${e.message}`);
+    }
+  }
+}
+
+/** 開機初始化：啟動定期提醒檢查（每 5 分鐘） */
+async function onReady(client) {
+  // 初始化計時，避免啟動後立刻提醒
+  for (const guild of client.guilds.cache.values()) {
+    lastRemind.set(guild.id, Date.now());
+  }
+  setInterval(() => {
+    checkReminders(client).catch((e) => logger.error('verify', `提醒迴圈錯誤：${e.message}`));
+  }, 5 * 60 * 1000);
+}
+
+module.exports = { setup, deploy, updateMessage, handleButton, onGuildMemberAdd, checkReminders, onReady };

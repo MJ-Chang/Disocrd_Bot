@@ -24,6 +24,11 @@ const DEFAULTS = {
     buttonEmoji: null,
     message: null,
     autoRemoveOnLeave: false,
+    unverifiedRole: null,
+    remindEnabled: false,
+    remindChannel: null,
+    remindInterval: 60,
+    remindMessage: null,
   },
   autoroles: [],
   logs: {

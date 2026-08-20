@@ -8,5 +8,10 @@ module.exports = {
     } catch (e) {
       logger.error('guildMemberAdd', `歡迎處理失敗：${e.stack || e.message}`);
     }
+    try {
+      await require('../features/verification').onGuildMemberAdd(client, member);
+    } catch (e) {
+      logger.error('guildMemberAdd', `驗證身分組處理失敗：${e.stack || e.message}`);
+    }
   },
 };

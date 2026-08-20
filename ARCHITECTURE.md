@@ -145,3 +145,4 @@ const { isAdmin, isModerator, canManageMember, requireBotPerm } = require('../..
 7. **完成後**對自己寫的每個檔案執行 `node --check <檔案>` 確認語法正確。
 8. 不要執行 `npm install`、不要啟動機器人、不要登入 Discord。
 9. 不要刪除任何既有檔案。
+1

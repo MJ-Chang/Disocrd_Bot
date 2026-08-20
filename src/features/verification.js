@@ -10,6 +10,8 @@ const DEFAULT_LABEL = () => t('✅ 點我驗證', '✅ Verify me');
 
 /** 每伺服器上次提醒時間（避免短時間重複提醒） */
 const lastRemind = new Map();
+/** 已警告過「未設定未驗證身分組」的伺服器 */
+const remindWarned = new Set();
 
 /** 建立面板 Embed（description 可為自訂規則/說明文字） */
 function buildEmbed(client, message) {
@@ -230,14 +232,23 @@ async function sendTestReminder(client, guild) {
 
 /**
  * 定期提醒未驗證成員（「不驗證就退出」壓力機制）。
- * 每 5 分鐘檢查一次，每伺服器依 remindInterval（分鐘）間隔發送一次。
+ * 每 1 分鐘檢查一次，每伺服器依 remindInterval（分鐘）間隔發送一次。
  */
 async function checkReminders(client) {
   for (const guild of client.guilds.cache.values()) {
     try {
       const s = await client.settings.get(guild.id);
       const v = s.verify || {};
-      if (!v.enabled || !v.remindEnabled || !v.remindChannel || !v.unverifiedRole) continue;
+      if (!v.enabled || !v.remindEnabled || !v.remindChannel) continue;
+
+      // 未設定「未驗證身分組」→ 提醒無法運作，記錄一次警告方便除錯
+      if (!v.unverifiedRole) {
+        if (!remindWarned.has(guild.id)) {
+          remindWarned.add(guild.id);
+          logger.warn('verify', `提醒功能已啟用但「未驗證身分組」未設定（${guild.id}），請到設定中心設定後再儲存`);
+        }
+        continue;
+      }
 
       const intervalMs = (v.remindInterval || 60) * 60 * 1000;
       const last = lastRemind.get(guild.id);
@@ -283,7 +294,7 @@ async function checkReminders(client) {
   }
 }
 
-/** 開機初始化：啟動定期提醒檢查（每 5 分鐘） */
+/** 開機初始化：啟動定期提醒檢查（每 1 分鐘，支援 remindInterval=1 分鐘） */
 async function onReady(client) {
   // 初始化計時，避免啟動後立刻提醒
   for (const guild of client.guilds.cache.values()) {
@@ -291,7 +302,7 @@ async function onReady(client) {
   }
   setInterval(() => {
     checkReminders(client).catch((e) => logger.error('verify', `提醒迴圈錯誤：${e.message}`));
-  }, 5 * 60 * 1000);
+  }, 60 * 1000);
 }
 
 module.exports = { setup, deploy, updateMessage, handleButton, onGuildMemberAdd, checkReminders, sendTestReminder, onReady };

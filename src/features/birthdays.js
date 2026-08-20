@@ -54,11 +54,11 @@ async function checkBirthdays(client) {
         if (sentToday.has(dedupeKey)) continue;
         sentToday.set(dedupeKey, dateStr);
 
-        // 公告頻道
+        // 公告頻道（提及只出現一次）
         try {
           const channel = await guild.channels.fetch(s.birthdays.channel).catch(() => null);
           if (channel && channel.isTextBased()) {
-            await channel.send(t(`🎂 <@${userId}> 生日快樂！`, `🎂 Happy birthday, <@${userId}>!`));
+            await channel.send(`<@${userId}>\n` + t(`🎂 生日快樂！`, `🎂 Happy birthday!`));
           }
         } catch (e) {
           logger.warn('birthdays', `生日公告失敗（${guild.id}/${userId}）：${e.message}`);

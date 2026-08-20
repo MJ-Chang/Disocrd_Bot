@@ -3,7 +3,7 @@ const { t } = require('../utils/i18n');
 const { logger } = require('../utils/logger');
 
 /** 預設歡迎訊息 */
-const DEFAULT_WELCOME = () => t('歡迎 {mention} 加入 **{guild}**！目前共有 {count} 位成員。', 'Welcome {mention} to **{guild}**! We now have {count} members.');
+const DEFAULT_WELCOME = () => t('歡迎 {mention} 加入 **{guild}**！目前共有 {count} 位成員。', 'Welcome to **{guild}**! We now have {count} members.');
 /** 預設歡送訊息 */
 const DEFAULT_GOODBYE = () => t('{user} 離開了伺服器。', '{user} left the server.');
 /** 預設私訊內容 */

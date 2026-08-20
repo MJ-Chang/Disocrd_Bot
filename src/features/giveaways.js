@@ -136,11 +136,10 @@ async function end(client, giveaway) {
     const channel = client.channels.cache.get(current.channelId);
     if (channel) {
       if (picked.length > 0) {
+        // 提及只出現一次（訊息最前），雙語內容不重複 tag
+        const winners = picked.map((id) => `<@${id}>`).join(' ');
         await channel.send({
-          content: t(
-            `${picked.map((id) => `<@${id}>`).join(' ')} 恭喜贏得 **${current.prize}**！`,
-            `${picked.map((id) => `<@${id}>`).join(' ')} won **${current.prize}**!`
-          ),
+          content: `${winners}\n` + t(`🎉 恭喜贏得 **${current.prize}**！`, `🎉 Won **${current.prize}**!`),
         });
       } else {
         await channel.send({
@@ -181,11 +180,9 @@ async function reroll(client, giveaway) {
   try {
     const channel = client.channels.cache.get(current.channelId);
     if (channel) {
+      const winners = picked.map((id) => `<@${id}>`).join(' ');
       await channel.send({
-        content: t(
-          `🎉 重新抽獎！${picked.map((id) => `<@${id}>`).join(' ')} 恭喜贏得 **${current.prize}**！`,
-          `🎉 Reroll! ${picked.map((id) => `<@${id}>`).join(' ')} won **${current.prize}**!`
-        ),
+        content: `${winners}\n` + t(`🎉 重新抽獎，恭喜贏得 **${current.prize}**！`, `🎉 Reroll! Won **${current.prize}**!`),
       });
     }
   } catch (e) {

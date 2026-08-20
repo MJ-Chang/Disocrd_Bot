@@ -17,4 +17,16 @@ function t(zh, en) {
   return `${zh} | ${en}`;
 }
 
-module.exports = { t, LANG };
+/**
+ * 換行版雙語助手：tn('中文', 'English')
+ * - both：中文與英文分行顯示（適合較長的提醒/公告訊息）
+ * - zh / en：與 t() 相同
+ */
+function tn(zh, en) {
+  if (!en) return zh;
+  if (LANG === 'en') return en;
+  if (LANG === 'zh') return zh;
+  return `${zh}\n${en}`;
+}
+
+module.exports = { t, tn, LANG };

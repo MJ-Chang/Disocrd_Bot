@@ -54,9 +54,9 @@ async function handleMessage(client, message) {
       }
     }
 
-    // 升級公告（leveling.channel 若有，否則 DM）
+    // 升級公告（leveling.channel 若有，否則 DM）；提及只出現一次
     if (!s.leveling.announce) return;
-    const text = t(`🎉 ${message.author.toString()} 升到 **${newLevel} 級**！`, `🎉 ${message.author.toString()} leveled up to **level ${newLevel}**!`);
+    const text = `${message.author.toString()}\n` + t(`🎉 升到 **${newLevel} 級**！`, `🎉 Leveled up to **level ${newLevel}**!`);
     try {
       if (s.leveling.channel) {
         const channel = await message.guild.channels.fetch(s.leveling.channel).catch(() => null);

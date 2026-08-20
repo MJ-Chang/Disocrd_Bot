@@ -1,7 +1,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { Colors } = require('../utils/constants');
 const { sendError, sendSuccess, withFooter } = require('../utils/embeds');
-const { t } = require('../utils/i18n');
+const { t, tn } = require('../utils/i18n');
 const { logger } = require('../utils/logger');
 
 const PANEL_TITLE = () => t('🔐 身分驗證', '🔐 Verification');
@@ -206,20 +206,21 @@ async function sendTestReminder(client, guild) {
       .replaceAll('{guild}', guild.name)
       .replaceAll('{count}', String(count));
   } else {
-    // 完整句直接雙語，避免嵌套 t() 造成文字重複
-    text = verifyChannel
-      ? t(
-          `${fakeUsers} 你還沒有完成驗證！請到 ${verifyChannel} 點擊上方按鈕完成驗證，解鎖所有頻道。`,
-          `${fakeUsers} You haven't verified yet! Please go to ${verifyChannel} and click the button above to verify and unlock all channels.`
+    // 提及只出現一次（放在訊息最前），雙語內容分行不重複 tag
+    const body = verifyChannel
+      ? tn(
+          `你還沒有完成驗證！請到 ${verifyChannel} 點擊上方按鈕完成驗證，解鎖所有頻道。`,
+          `You haven't verified yet! Please go to ${verifyChannel} and click the button above to verify and unlock all channels.`
         )
-      : t(
-          `${fakeUsers} 你還沒有完成驗證！請到驗證頻道點擊按鈕完成驗證，解鎖所有頻道。`,
-          `${fakeUsers} You haven't verified yet! Please go to the verify channel and click the button to verify and unlock all channels.`
+      : tn(
+          `你還沒有完成驗證！請到驗證頻道點擊按鈕完成驗證，解鎖所有頻道。`,
+          `You haven't verified yet! Please go to the verify channel and click the button to verify and unlock all channels.`
         );
+    text = `${fakeUsers}\n${body}`;
   }
 
   await channel.send({
-    content: t(
+    content: tn(
       `📋 測試提醒（TEST）｜目前 ${count} 位未驗證成員：\n\n`,
       `📋 Test reminder｜${count} unverified member(s) now:\n\n`
     ) + text,
@@ -263,16 +264,17 @@ async function checkReminders(client) {
           .replaceAll('{count}', String(members.size));
       } else {
         const users = mentioned.map((m) => m.toString()).join(' ');
-        // 完整句直接雙語，避免嵌套 t() 造成文字重複
-        text = verifyChannel
-          ? t(
-              `${users} 你還沒有完成驗證！請到 ${verifyChannel} 點擊上方按鈕完成驗證，解鎖所有頻道。${extra}`,
-              `${users} You haven't verified yet! Please go to ${verifyChannel} and click the button above to verify and unlock all channels.${extra}`
+        // 提及只出現一次（放在訊息最前），雙語內容分行不重複 tag
+        const body = verifyChannel
+          ? tn(
+              `你還沒有完成驗證！請到 ${verifyChannel} 點擊上方按鈕完成驗證，解鎖所有頻道。${extra}`,
+              `You haven't verified yet! Please go to ${verifyChannel} and click the button above to verify and unlock all channels.${extra}`
             )
-          : t(
-              `${users} 你還沒有完成驗證！請到驗證頻道點擊按鈕完成驗證，解鎖所有頻道。${extra}`,
-              `${users} You haven't verified yet! Please go to the verify channel and click the button to verify and unlock all channels.${extra}`
+          : tn(
+              `你還沒有完成驗證！請到驗證頻道點擊按鈕完成驗證，解鎖所有頻道。${extra}`,
+              `You haven't verified yet! Please go to the verify channel and click the button to verify and unlock all channels.${extra}`
             );
+        text = `${users}\n${body}`;
       }
       await channel.send({ content: text });
     } catch (e) {

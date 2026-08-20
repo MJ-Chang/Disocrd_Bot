@@ -12,8 +12,6 @@ const { logger } = require('../utils/logger');
  * 基準線紀錄存於 collection 'githubWatch'（key: guildId:watchType:repo）
  */
 
-const CHECK_INTERVAL = 10 * 60 * 1000; // 10 分鐘檢查一次
-
 /** 抓取庫的最新資訊（releases 或 commits）；失敗/無資料回傳 null */
 async function fetchRepo(repo, watchType, branch) {
   const url =
@@ -127,11 +125,13 @@ async function checkAll(client) {
   }
 }
 
-/** 開機初始化：啟動定期檢查（每 10 分鐘）並先跑一次建立基準線 */
+/** 開機初始化：啟動定期檢查並先跑一次建立基準線 */
 async function onReady(client) {
+  const intervalMs = config.githubCheckIntervalMin * 60 * 1000;
+  logger.info('github', `GitHub 檢查間隔：${config.githubCheckIntervalMin} 分鐘（可用 .env 的 GITHUB_CHECK_INTERVAL 調整）`);
   // 先跑一次：建立各庫的基準線（不會發通知）
   setTimeout(() => checkAll(client).catch(() => {}), 30 * 1000);
-  setInterval(() => checkAll(client).catch(() => {}), CHECK_INTERVAL);
+  setInterval(() => checkAll(client).catch(() => {}), intervalMs);
 }
 
 module.exports = { fetchRepo, buildEmbed, checkRepo, checkGuild, checkAll, onReady };

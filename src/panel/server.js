@@ -129,6 +129,18 @@ function createPanel(client) {
     }
   });
 
+  app.post('/api/guild/:id/verify/remind-test', async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).json({ error: 'guild not found' });
+    try {
+      const r = await require('../features/verification').sendTestReminder(client, guild);
+      if (!r.ok) return res.status(400).json({ error: r.error });
+      res.json({ ok: true, message: r.message });
+    } catch (e) {
+      res.status(500).json({ error: `發送失敗：${e.message}` });
+    }
+  });
+
   app.post('/api/guild/:id/tickets/send', async (req, res) => {
     const guild = client.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).json({ error: 'guild not found' });

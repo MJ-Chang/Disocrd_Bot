@@ -511,7 +511,10 @@ const FEATURES = [
       { path: 'verify.remindInterval', label: '提醒間隔（分鐘）Reminder interval (minutes)', type: 'number' },
       { path: 'verify.remindMessage', label: '提醒文字（可用 {users} {channel} {guild} {count}）Reminder text', type: 'text' },
     ],
-    actions: [{ label: '📨 發送驗證面板到所選頻道 Send verification panel', fn: 'verifySend' }],
+    actions: [
+      { label: '📨 發送驗證面板到所選頻道 Send verification panel', fn: 'verifySend' },
+      { label: '📨 傳送測試提醒訊息 Send test reminder', fn: 'verifyRemindTest' },
+    ],
     hint: '點「發送驗證面板」後，頻道會出現「規則說明 + 驗證按鈕」｜Sends the rules + verify button to the channel',
   },
   {
@@ -858,6 +861,13 @@ function saveCard(key) {
 async function verifySend() {
   try {
     const r = await api(`/api/guild/${currentGuildId}/verify/send`, { method: 'POST' });
+    toast(r.message, 'ok');
+  } catch (e) { toast('發送失敗：' + e.message, 'err'); }
+}
+
+async function verifyRemindTest() {
+  try {
+    const r = await api(`/api/guild/${currentGuildId}/verify/remind-test`, { method: 'POST' });
     toast(r.message, 'ok');
   } catch (e) { toast('發送失敗：' + e.message, 'err'); }
 }

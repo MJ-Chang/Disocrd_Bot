@@ -178,6 +178,53 @@ async function onGuildMemberAdd(client, member) {
 }
 
 /**
+ * 傳送測試提醒訊息（供控制面板預覽提醒內容；使用假提及，不會真的 Tag 成員）。
+ * @returns {Promise<{ok: boolean, error?: string, message?: string}>}
+ */
+async function sendTestReminder(client, guild) {
+  const v = (await client.settings.get(guild.id)).verify || {};
+  if (!v.remindChannel) {
+    return { ok: false, error: t('請先設定「提醒頻道」並儲存。', 'Set the reminder channel and save first.') };
+  }
+  const channel = guild.channels.cache.get(v.remindChannel);
+  if (!channel || !channel.isTextBased()) {
+    return { ok: false, error: t('找不到提醒頻道（可能已被刪除），請重新選擇。', 'Reminder channel not found (deleted?). Please pick it again.') };
+  }
+
+  const count = v.unverifiedRole
+    ? guild.members.cache.filter((m) => !m.user.bot && m.roles.cache.has(v.unverifiedRole)).size
+    : 0;
+  const verifyChannel = v.channel ? `<#${v.channel}>` : '';
+  const fakeUsers = '@user1 @user2'; // 測試用假提及，不真的 Tag 任何人
+
+  let text;
+  const custom = v.remindMessage;
+  if (custom && custom.trim()) {
+    text = custom
+      .replaceAll('{users}', fakeUsers)
+      .replaceAll('{channel}', verifyChannel)
+      .replaceAll('{guild}', guild.name)
+      .replaceAll('{count}', String(count));
+  } else {
+    const chPart = verifyChannel
+      ? t(`請到 ${verifyChannel} 點擊按鈕`, `Click the button in ${verifyChannel}`)
+      : t('請在驗證頻道點擊按鈕', 'Click the verify button in the verify channel');
+    text = t(
+      `${fakeUsers} 你還沒有完成驗證！${chPart} 完成驗證即可解鎖全部頻道。`,
+      `${fakeUsers} You haven't verified yet! ${chPart} to unlock all channels.`
+    );
+  }
+
+  await channel.send({
+    content: t(
+      `📋 測試提醒（TEST）｜目前 ${count} 位未驗證成員：\n\n`,
+      `📋 Test reminder｜${count} unverified member(s) now:\n\n`
+    ) + text,
+  });
+  return { ok: true, message: t(`✅ 已發送測試提醒到 <#${channel.id}>。`, `✅ Test reminder sent to <#${channel.id}>.`) };
+}
+
+/**
  * 定期提醒未驗證成員（「不驗證就退出」壓力機制）。
  * 每 5 分鐘檢查一次，每伺服器依 remindInterval（分鐘）間隔發送一次。
  */
@@ -238,4 +285,4 @@ async function onReady(client) {
   }, 5 * 60 * 1000);
 }
 
-module.exports = { setup, deploy, updateMessage, handleButton, onGuildMemberAdd, checkReminders, onReady };
+module.exports = { setup, deploy, updateMessage, handleButton, onGuildMemberAdd, checkReminders, sendTestReminder, onReady };

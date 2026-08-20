@@ -13,6 +13,7 @@ const READY_HOOKS = [
   'economy',
   'music',
   'guide',
+  'githubWatch',
 ];
 
 module.exports = {

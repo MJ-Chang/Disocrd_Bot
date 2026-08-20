@@ -636,6 +636,22 @@ const FEATURES = [
     actions: [{ label: '📨 發送指令說明到所選頻道 Send command guide', fn: 'guideSend' }],
     hint: '點「發送指令說明」後，頻道會出現所有指令的分類說明（自動隱藏管理指令）｜Sends a categorized command list (admin commands hidden)',
   },
+  {
+    key: 'github', icon: '🐙', title: 'GitHub 更新通知 GitHub Watcher', desc: '監控 GitHub 庫，有新版本/新提交就通知到指定頻道（每 10 分鐘檢查）｜Watch repos, notify on new releases/commits (every 10 min)',
+    status: (s) => s.githubWatch.enabled && !!s.githubWatch.channel && (s.githubWatch.repos || []).length > 0,
+    fields: [
+      { path: 'githubWatch.enabled', label: '啟用 Enable', type: 'bool' },
+      { path: 'githubWatch.channel', label: '通知頻道 Notification channel', type: 'channel', filter: 'text' },
+      { path: 'githubWatch.watchType', label: '監看類型 Watch type', type: 'select', options: [
+        { value: 'releases', label: '🎉 新版本 Releases' },
+        { value: 'commits', label: '🔀 新提交 Commits' },
+      ] },
+      { path: 'githubWatch.branch', label: '分支（監看 commits 時用）Branch (for commits)', type: 'text' },
+      { path: 'githubWatch.repos', label: 'GitHub 庫（每行一個，格式 owner/repo）Repos (one per line)', type: 'repolist' },
+    ],
+    actions: [{ label: '🔍 立即檢查一次 Check now', fn: 'githubCheck' }],
+    hint: '第一次「立即檢查」只建立基準線不發通知，之後有新更新才會通知｜First check only sets the baseline; notifications start from the next update',
+  },
 ];
 
 function getPath(obj, p) { return p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj); }
@@ -699,6 +715,10 @@ function renderField(f) {
   }
   if (f.type === 'textarea') {
     return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label><textarea data-path="${f.path}" rows="3" spellcheck="false">${escAttr(val || '')}</textarea></div>`;
+  }
+  if (f.type === 'repolist') {
+    const lines = Array.isArray(val) ? val.join('\n') : (val || '');
+    return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label><textarea data-path="${f.path}" data-array="1" rows="4" spellcheck="false" placeholder="例如 e.g.&#10;discordjs/discord.js&#10;nodejs/node">${escAttr(lines)}</textarea></div>`;
   }
   if (f.type === 'number') {
     return `<div class="field"><label>${f.label}</label><input type="number" data-path="${f.path}" value="${val ?? ''}" min="0"></div>`;
@@ -815,6 +835,7 @@ function saveCard(key) {
     if (el.type === 'checkbox') v = el.checked;
     else if (el.type === 'number') v = el.value === '' ? null : Number(el.value);
     else if (el.multiple) v = [...el.selectedOptions].map((o) => o.value);
+    else if (el.dataset.array) v = el.value.split('\n').map((s) => s.trim()).filter(Boolean);
     else if (el.tagName === 'TEXTAREA') v = el.value;
     else v = el.value === '' ? null : el.value;
     setPath(patch, path, v);
@@ -873,6 +894,13 @@ async function guideSend() {
     const r = await api(`/api/guild/${currentGuildId}/guide/send`, { method: 'POST' });
     toast(r.message, 'ok');
   } catch (e) { toast('發送失敗：' + e.message, 'err'); }
+}
+
+async function githubCheck() {
+  try {
+    const r = await api(`/api/guild/${currentGuildId}/github/check`, { method: 'POST' });
+    toast(r.message, 'ok');
+  } catch (e) { toast('檢查失敗：' + e.message, 'err'); }
 }
 
 /* ===== 進階 JSON ===== */

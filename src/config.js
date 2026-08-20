@@ -38,6 +38,8 @@ const config = {
   mongodbUri: process.env.MONGODB_URI || '',
   /** MongoDB 資料庫名稱 */
   mongodbName: process.env.MONGODB_NAME || 'disocrd_bot',
+  /** GitHub API Token（可選；未設定時有每小時 60 次的速率限制） */
+  githubToken: process.env.GITHUB_TOKEN || '',
   /** Privileged Intents 開關（對應開發者後台的三個開關；設 false 可略過） */
   intents: {
     members: process.env.INTENT_MEMBERS !== 'false',

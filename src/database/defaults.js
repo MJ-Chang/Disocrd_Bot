@@ -139,6 +139,13 @@ const DEFAULTS = {
     channel: null,
     messageId: null,
   },
+  githubWatch: {
+    enabled: false,
+    channel: null,
+    watchType: 'releases', // releases | commits
+    branch: 'main',
+    repos: [],
+  },
   modlogChannel: null,
 };
 

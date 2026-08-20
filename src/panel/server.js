@@ -179,6 +179,25 @@ function createPanel(client) {
     }
   });
 
+  app.post('/api/guild/:id/github/check', async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).json({ error: 'guild not found' });
+    try {
+      const r = await require('../features/githubWatch').checkGuild(client, guild);
+      if (!r.ok) return res.status(400).json({ error: r.error });
+      const { t } = require('../utils/i18n');
+      res.json({
+        ok: true,
+        message: t(
+          `✅ 已檢查 ${r.total} 個庫${r.notified ? `，發現 ${r.notified} 個更新並已通知` : ''}${r.first ? `（${r.first} 個首次建立基準線）` : ''}`,
+          `Checked ${r.total} repos${r.notified ? `, ${r.notified} update(s) notified` : ''}${r.first ? ` (${r.first} baseline(s) set)` : ''}`
+        ),
+      });
+    } catch (e) {
+      res.status(500).json({ error: `檢查失敗：${e.message}` });
+    }
+  });
+
   // ===== 伺服器設定 =====
   app.get('/api/settings/:guildId', async (req, res) => {
     try {

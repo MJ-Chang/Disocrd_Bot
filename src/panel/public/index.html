@@ -729,7 +729,7 @@ function renderField(f) {
     const rows = repos.map((r, i) => repoRowHtml(r, i)).join('');
     return `<div class="field" style="grid-column:1/-1"><label>${f.label}</label>
       <div class="repo-rows" data-repos>${rows || '<div class="empty" style="padding:10px">尚未加入任何庫｜No repos yet</div>'}</div>
-      <button type="button" class="btn" style="margin-top:8px" onclick="addRepoRow()">＋ 新增庫 Add repo</button>
+      <button type="button" class="btn" style="margin-top:8px" onclick="addRepoRow(this)">＋ 新增庫 Add repo</button>
     </div>`;
   }
   if (f.type === 'number') {
@@ -800,8 +800,10 @@ function repoRowHtml(r, i) {
   </div>`;
 }
 
-function addRepoRow() {
-  const box = document.querySelector('#settingsForm .repo-rows[data-repos]');
+function addRepoRow(btn) {
+  const card = btn.closest('.feature-card');
+  if (!card) return;
+  const box = card.querySelector('.repo-rows[data-repos]');
   if (!box) return;
   const empty = box.querySelector('.empty');
   if (empty) box.removeChild(empty);
@@ -812,7 +814,8 @@ function removeRepoRow(btn) {
   const row = btn.closest('.repo-row');
   if (!row) return;
   row.remove();
-  const box = document.querySelector('#settingsForm .repo-rows[data-repos]');
+  const card = btn.closest('.feature-card');
+  const box = card ? card.querySelector('.repo-rows[data-repos]') : null;
   if (box && !box.querySelector('.repo-row')) {
     box.innerHTML = '<div class="empty" style="padding:10px">尚未加入任何庫｜No repos yet</div>';
   }

@@ -63,6 +63,7 @@ async function registerCommands(client) {
 
   // 指令定義與註冊目標都未變更時，略過註冊（避免每次重啟都觸發 Discord 速率限制，
   // 導致用戶端出現「此命令已過期，請過幾分鐘後再試一次」）
+  // 設 FORCE_COMMAND_REGISTER=true 可強制每次註冊
   const hash = crypto.createHash('sha256').update(JSON.stringify({ scope, commands })).digest('hex');
   const hashFile = path.join(config.dataDir, 'commands-hash.json');
   let last = null;
@@ -71,9 +72,12 @@ async function registerCommands(client) {
   } catch (e) {
     /* 無紀錄 */
   }
-  if (last && last.scope === scope && last.hash === hash) {
+  if (!config.forceRegister && last && last.scope === scope && last.hash === hash) {
     logger.info('commands', '指令定義未變更，略過註冊（避免觸發 Discord 速率限制）');
     return;
+  }
+  if (config.forceRegister) {
+    logger.info('commands', 'FORCE_COMMAND_REGISTER=true，強制重新註冊指令');
   }
 
   const rest = new REST({ version: '10' }).setToken(config.token);

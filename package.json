@@ -11,6 +11,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "check": "node scripts/check.js",
+    "validate": "node scripts/validate-commands.js",
     "dry": "node src/index.js --dry",
     "test:panel": "node scripts/test-panel.js",
     "test:mongo": "node scripts/test-mongo-store.js",

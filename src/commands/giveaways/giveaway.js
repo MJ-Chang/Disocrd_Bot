@@ -33,13 +33,13 @@ module.exports = {
         .setDescription(t('開始一場抽獎', 'Start a giveaway'))
         .addStringOption((o) => o.setName('prize').setDescription(t('獎品名稱（單一獎品用）', 'Prize name (single prize)')).setRequired(true))
         .addStringOption((o) =>
-          o.setName('prizes').setDescription(t('多個獎品（逗號分隔，如 A, B, C）', 'Multiple prizes (comma-separated)'))
-        )
-        .addStringOption((o) =>
           o
             .setName('duration')
             .setDescription(t('持續時間，例如 1h30m、2d、90（秒）', 'Duration, e.g. 1h30m, 2d, 90 (sec)'))
             .setRequired(true)
+        )
+        .addStringOption((o) =>
+          o.setName('prizes').setDescription(t('多個獎品（逗號分隔，如 A, B, C）', 'Multiple prizes (comma-separated)'))
         )
         .addIntegerOption((o) => o.setName('winners').setDescription(t('贏家人數（預設 1；多獎品時自動等於獎品數）', 'Winner count (default 1; equals prize count for multiple prizes)')).setMinValue(1))
         .addBooleanOption((o) => o.setName('weighted').setDescription(t('依等級加權（越高級越容易中獎）', 'Weight by level (higher level = better odds)')))

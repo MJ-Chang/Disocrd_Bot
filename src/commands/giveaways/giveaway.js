@@ -2,7 +2,7 @@ const { MessageFlags, SlashCommandBuilder, EmbedBuilder } = require('discord.js'
 const { Colors } = require('../../utils/constants');
 const { sendError, sendSuccess } = require('../../utils/embeds');
 const { parseDuration, discordTimestamp } = require('../../utils/format');
-const { requireAdmin } = require('../../core/permissions');
+const { requireAdmin, requireMod } = require('../../core/permissions');
 const giveaways = require('../../features/giveaways');
 const { logger } = require('../../utils/logger');
 const { t } = require('../../utils/i18n');
@@ -18,6 +18,21 @@ function resolveGiveaway(client, interaction, messageId) {
   if (!channel) return null;
   const list = col
     .filter((x) => x.guildId === interaction.guild.id && x.channelId === channel.id && !x.ended)
+    .sort((a, b) => (b.endsAt || 0) - (a.endsAt || 0));
+  return list[0] || null;
+}
+
+/** 依 message_id（或目前頻道最近一場抽獎，含已結束）解析抽獎（供參加者名單用） */
+function resolveGiveawayAny(client, interaction, messageId) {
+  const col = client.db.collection('giveaways');
+  if (messageId) {
+    const g = col.get(messageId);
+    return g && g.guildId === interaction.guild.id ? g : null;
+  }
+  const channel = interaction.channel;
+  if (!channel) return null;
+  const list = col
+    .filter((x) => x.guildId === interaction.guild.id && x.channelId === channel.id)
     .sort((a, b) => (b.endsAt || 0) - (a.endsAt || 0));
   return list[0] || null;
 }
@@ -75,7 +90,17 @@ module.exports = {
             .setDescription(t('抽獎訊息 ID（預設取目前頻道最近一場）', 'Giveaway message ID (default: latest in channel)'))
         )
     )
-    .addSubcommand((s) => s.setName('list').setDescription(t('列出此伺服器進行中的抽獎', 'List active giveaways'))),
+    .addSubcommand((s) => s.setName('list').setDescription(t('列出此伺服器進行中的抽獎', 'List active giveaways')))
+    .addSubcommand((s) =>
+      s
+        .setName('participants')
+        .setDescription(t('查看抽獎的參加者名單（管理員）', 'View giveaway participants (moderators)'))
+        .addStringOption((o) =>
+          o
+            .setName('message_id')
+            .setDescription(t('抽獎訊息 ID（預設取目前頻道最近一場，含已結束）', 'Giveaway message ID (default: latest in channel, incl. ended)'))
+        )
+    ),
   cooldown: 3000,
   async run(interaction, client) {
     const sub = interaction.options.getSubcommand();
@@ -171,6 +196,29 @@ module.exports = {
               .join('\n')
           )
           .setTimestamp();
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      if (sub === 'participants') {
+        if (!(await requireMod(interaction))) return;
+        const g = resolveGiveawayAny(client, interaction, interaction.options.getString('message_id'));
+        if (!g) return sendError(interaction, t('找不到指定的抽獎。', 'Giveaway not found.'));
+        const entries = Array.isArray(g.entries) ? g.entries : [];
+        const prize = g.prize || (Array.isArray(g.prizes) ? g.prizes.join(', ') : '');
+        const status = g.ended ? t('已結束', 'Ended') : t('進行中', 'Active');
+        const shown = entries.slice(0, 40);
+        const more = entries.length > 40 ? t(`…及另外 ${entries.length - 40} 人`, `…and ${entries.length - 40} more`) : '';
+        const embed = new EmbedBuilder()
+          .setColor(Colors.GIVEAWAY)
+          .setTitle(t('👥 參加者名單', '👥 Participants'))
+          .setDescription(t(`**${prize}**（${status}）｜共 ${entries.length} 人`, `**${prize}** (${status}) ｜ ${entries.length} total`))
+          .addFields({
+            name: t('👤 參加者', '👤 Entrants'),
+            value: entries.length
+              ? shown.map((id) => `<@${id}>`).join(' ') + more
+              : t('（尚無參加者）', '(no entrants yet)'),
+          });
         await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
       }

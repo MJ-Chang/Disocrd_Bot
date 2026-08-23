@@ -2,14 +2,53 @@ const { MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder
 const { Colors } = require('../utils/constants');
 const { formatCompact } = require('../utils/format');
 const { t } = require('../utils/i18n');
+const { logger } = require('../utils/logger');
 
 /**
- * 投票系統：最多 10 個選項，按鈕投票（單選），可結束。
- * 狀態僅存記憶體（重啟後失效）。customId 前綴：poll:
+ * 投票系統（持久化）：最多 10 個選項，按鈕投票（單選），可結束。
+ * 投票資料存入資料庫 collection 'polls'，機器人重啟後仍然有效。
+ * customId 前綴：poll:
  */
-const POLLS = new Map(); // messageId -> { guildId, authorId, question, options, votes: Map<idx, Set<userId>>, ended }
+const POLLS = new Map(); // messageId -> poll（記憶體快取，開機從 DB 載入）
+
+const col = (client) => client.db.collection('polls');
 
 const EMOJI_NUMBERS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
+/** 序列化投票（Set → 陣列，供 DB 儲存） */
+function serialize(poll) {
+  const votes = {};
+  for (const [i, s] of poll.votes) votes[i] = [...s];
+  return {
+    guildId: poll.guildId,
+    authorId: poll.authorId,
+    question: poll.question,
+    options: poll.options,
+    votes,
+    ended: poll.ended,
+  };
+}
+
+/** 反序列化（陣列 → Set） */
+function deserialize(entry, messageId) {
+  const votes = new Map();
+  for (const [i, ids] of Object.entries(entry.votes || {})) votes.set(Number(i), new Set(ids));
+  return { messageId, guildId: entry.guildId, authorId: entry.authorId, question: entry.question, options: entry.options, votes, ended: !!entry.ended };
+}
+
+async function savePoll(client, poll) {
+  col(client).set(poll.messageId, serialize(poll));
+}
+
+/** 取得投票（先查記憶體快取，再查 DB） */
+async function getPoll(client, messageId) {
+  if (POLLS.has(messageId)) return POLLS.get(messageId);
+  const entry = col(client).get(messageId);
+  if (!entry) return null;
+  const poll = deserialize(entry, messageId);
+  POLLS.set(messageId, poll);
+  return poll;
+}
 
 function buildEmbed(poll) {
   const total = [...poll.votes.values()].reduce((sum, s) => sum + s.size, 0);
@@ -53,16 +92,18 @@ function buildComponents(poll) {
   return rows;
 }
 
-/** 建立投票（options 至少 2 個、最多 10 個） */
+/** 建立投票（options 至少 2 個、最多 10 個）並存入資料庫 */
 async function createPoll(client, interaction, question, options) {
   const votes = new Map();
   options.forEach((_, i) => votes.set(i, new Set()));
-  const poll = { guildId: interaction.guild.id, authorId: interaction.user.id, question, options, votes, ended: false };
+  const poll = { messageId: null, guildId: interaction.guild.id, authorId: interaction.user.id, question, options, votes, ended: false };
   const payload = { embeds: [buildEmbed(poll)], components: buildComponents(poll), fetchReply: true };
   const message =
     interaction.deferred || interaction.replied
       ? await interaction.editReply(payload)
       : await interaction.reply(payload);
+  poll.messageId = message.id;
+  await savePoll(client, poll);
   POLLS.set(message.id, poll);
   return message;
 }
@@ -71,9 +112,9 @@ async function handleButton(client, interaction) {
   const { customId } = interaction;
   if (!customId.startsWith('poll:')) return false;
 
-  const poll = POLLS.get(interaction.message.id);
+  const poll = await getPoll(client, interaction.message.id);
   if (!poll) {
-    await interaction.reply({ content: t('❌ 此投票已失效（機器人重啟後投票紀錄會清除）。', '❌ This poll is no longer active (records are cleared on bot restart).'), flags: MessageFlags.Ephemeral }).catch(() => {});
+    await interaction.reply({ content: t('❌ 找不到此投票。', '❌ This poll could not be found.'), flags: MessageFlags.Ephemeral }).catch(() => {});
     return true;
   }
 
@@ -83,6 +124,7 @@ async function handleButton(client, interaction) {
       return true;
     }
     poll.ended = true;
+    await savePoll(client, poll);
     await interaction.update({ embeds: [buildEmbed(poll)], components: buildComponents(poll) }).catch(() => {});
     return true;
   }
@@ -100,10 +142,24 @@ async function handleButton(client, interaction) {
   // 單選：先移除該用戶在其他選項的票
   for (const set of poll.votes.values()) set.delete(interaction.user.id);
   poll.votes.get(idx).add(interaction.user.id);
+  await savePoll(client, poll);
 
   await interaction.update({ embeds: [buildEmbed(poll)], components: buildComponents(poll) }).catch(() => {});
   await interaction.followUp({ content: t(`✅ 已投票給 **${poll.options[idx]}**`, `✅ Voted for **${poll.options[idx]}**`), flags: MessageFlags.Ephemeral }).catch(() => {});
   return true;
 }
 
-module.exports = { createPoll, handleButton };
+/** 開機初始化：從資料庫載入所有投票（持久化） */
+async function onReady(client) {
+  try {
+    const all = col(client).all();
+    for (const entry of all) {
+      POLLS.set(entry.id, deserialize(entry, entry.id));
+    }
+    if (all.length > 0) logger.info('polls', `已載入 ${all.length} 個投票（持久化）`);
+  } catch (e) {
+    logger.error('polls', `載入投票失敗：${e.message}`);
+  }
+}
+
+module.exports = { createPoll, handleButton, onReady, getPoll, savePoll };

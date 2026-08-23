@@ -14,6 +14,7 @@ const READY_HOOKS = [
   'music',
   'guide',
   'githubWatch',
+  'polls',
 ];
 
 module.exports = {

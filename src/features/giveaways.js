@@ -9,6 +9,7 @@ const { discordTimestamp } = require('../utils/format');
 const { sendError, sendSuccess } = require('../utils/embeds');
 const { logger } = require('../utils/logger');
 const { t } = require('../utils/i18n');
+const leveling = require('./leveling');
 
 /** customId 前綴 */
 const PREFIX = 'giveaway:';
@@ -16,19 +17,78 @@ const PREFIX = 'giveaway:';
 /** messageId -> setTimeout handle（結束計時器） */
 const timers = new Map();
 
+/** 獎品清單（多獎品模式用 prizes，否則退回單一 prize） */
+function prizeList(giveaway) {
+  if (Array.isArray(giveaway.prizes) && giveaway.prizes.length > 0) return giveaway.prizes;
+  return giveaway.prize ? [giveaway.prize] : [];
+}
+
+/** 加權隨機抽選：依等級加權（越高級越多張票），不重複抽取 n 位 */
+async function pickWinners(client, guildId, entries, n, weighted) {
+  if (entries.length === 0) return [];
+  let pool = entries.map((id) => ({ id, w: 1 }));
+  if (weighted) {
+    pool = await Promise.all(
+      entries.map(async (id) => {
+        let level = 0;
+        try {
+          const r = await leveling.getRank(client, guildId, id);
+          level = r.level || 0;
+        } catch (e) {
+          /* 忽略 */
+        }
+        return { id, w: 1 + Math.max(0, level) }; // 等級越高權重越大
+      })
+    );
+  }
+  const picked = [];
+  const remaining = pool.slice();
+  while (picked.length < Math.min(n, remaining.length)) {
+    const total = remaining.reduce((s, e) => s + e.w, 0);
+    let r = Math.random() * total;
+    let idx = 0;
+    for (let i = 0; i < remaining.length; i++) {
+      r -= remaining[i].w;
+      if (r <= 0) { idx = i; break; }
+    }
+    picked.push(remaining.splice(idx, 1)[0].id);
+  }
+  return picked;
+}
+
+/** 贏家宣布訊息：多獎品時每位贏家對應一個獎品 */
+function announceText(picked, giveaway) {
+  const prizes = prizeList(giveaway);
+  const winners = picked.map((id) => `<@${id}>`).join(' ');
+  if (prizes.length > 1) {
+    const lines = picked.map((id, i) => {
+      const prize = prizes[i] || prizes[prizes.length - 1];
+      return t(`<@${id}> 獲得 **${prize}**`, `<@${id}> won **${prize}**`);
+    });
+    return lines.join('\n');
+  }
+  const prize = prizes[0] || giveaway.prize;
+  return `${winners}\n` + t(`🎉 恭喜贏得 **${prize}**！`, `🎉 Won **${prize}**!`);
+}
+
 /** 建立抽獎 Embed */
 function buildEmbed(giveaway) {
   const entries = Array.isArray(giveaway.entries) ? giveaway.entries : [];
+  const prizes = prizeList(giveaway);
+  const prizeText = prizes.length > 1 ? prizes.map((p) => `• ${p}`).join('\n') : (prizes[0] || giveaway.prize || '');
   const embed = new EmbedBuilder()
     .setColor(Colors.GIVEAWAY)
-    .setTitle(`🎉 ${giveaway.prize}`)
+    .setTitle(`🎉 ${prizeText.split('\n')[0]}`)
     .addFields(
-      { name: t('🎁 獎品', '🎁 Prize'), value: giveaway.prize, inline: true },
+      { name: t('🎁 獎品', '🎁 Prize'), value: prizeText.slice(0, 1000), inline: true },
       { name: t('👥 參加人數', '👥 Entries'), value: `${entries.length}`, inline: true },
       { name: t('⏰ 結束時間', '⏰ Ends'), value: discordTimestamp(giveaway.endsAt, 'R'), inline: true },
       { name: t('👑 主辦人', '👑 Host'), value: `<@${giveaway.hostId}>`, inline: true }
     )
     .setTimestamp();
+  if (giveaway.weighted) {
+    embed.addFields({ name: t('⚖️ 加權', '⚖️ Weighted'), value: t('依等級加權，越高等級越容易中獎', 'Weighted by level, higher level = better odds'), inline: true });
+  }
   if (giveaway.ended) {
     embed.setDescription(t('**此抽獎已結束**', '**This giveaway has ended**'));
     const picked = Array.isArray(giveaway.picked) ? giveaway.picked : [];
@@ -79,15 +139,19 @@ async function refreshMessage(client, giveaway) {
 
 /**
  * 開始一場抽獎
+ * @param {object} opts { prizes?: string[], weighted?: boolean }
  * @returns {Promise<import('discord.js').Message|null>}
  */
-async function start(client, channel, durationMs, winners, prize, host) {
+async function start(client, channel, durationMs, winners, prize, host, opts = {}) {
   const endsAt = Date.now() + durationMs;
+  const prizes = Array.isArray(opts.prizes) && opts.prizes.length > 0 ? opts.prizes : null;
   const giveaway = {
     guildId: (channel.guild && channel.guild.id) || channel.guildId || null,
     channelId: channel.id,
     prize,
-    winners: Math.max(1, winners),
+    prizes, // 多獎品模式：獎品陣列（null = 單一獎品）
+    weighted: !!opts.weighted,
+    winners: Math.max(1, winners, prizes ? prizes.length : 1),
     endsAt,
     hostId: host.id,
     entries: [],
@@ -123,7 +187,8 @@ async function end(client, giveaway) {
   clearTimer(current.messageId);
 
   const entries = Array.isArray(current.entries) ? current.entries : [];
-  const picked = shuffle(entries).slice(0, Math.max(1, current.winners || 1));
+  const prizes = prizeList(current);
+  const picked = await pickWinners(client, current.guildId, entries, Math.max(current.winners || 1, prizes.length), current.weighted);
   current.ended = true;
   current.picked = picked;
   current.endedAt = Date.now();
@@ -136,16 +201,13 @@ async function end(client, giveaway) {
     const channel = client.channels.cache.get(current.channelId);
     if (channel) {
       if (picked.length > 0) {
-        // 提及只出現一次（訊息最前），雙語內容不重複 tag
-        const winners = picked.map((id) => `<@${id}>`).join(' ');
-        await channel.send({
-          content: `${winners}\n` + t(`🎉 恭喜贏得 **${current.prize}**！`, `🎉 Won **${current.prize}**!`),
-        });
+        await channel.send({ content: announceText(picked, current) });
       } else {
+        const prize = prizes[0] || current.prize;
         await channel.send({
           content: t(
-            `很可惜，**${current.prize}** 的抽獎沒有任何人參加，本次抽獎取消。`,
-            `Sadly, nobody joined the **${current.prize}** giveaway, so it was cancelled.`
+            `很可惜，**${prize}** 的抽獎沒有任何人參加，本次抽獎取消。`,
+            `Sadly, nobody joined the **${prize}** giveaway, so it was cancelled.`
           ),
         });
       }
@@ -171,7 +233,8 @@ async function reroll(client, giveaway) {
   const pool = entries.filter((id) => !exclude.has(id));
   if (pool.length === 0) return null;
 
-  const picked = shuffle(pool).slice(0, Math.max(1, current.winners || 1));
+  const prizes = prizeList(current);
+  const picked = await pickWinners(client, current.guildId, pool, Math.max(current.winners || 1, prizes.length), current.weighted);
   current.picked = [...(Array.isArray(current.picked) ? current.picked : []), ...picked];
   col.set(current.messageId, current);
 
@@ -180,10 +243,7 @@ async function reroll(client, giveaway) {
   try {
     const channel = client.channels.cache.get(current.channelId);
     if (channel) {
-      const winners = picked.map((id) => `<@${id}>`).join(' ');
-      await channel.send({
-        content: `${winners}\n` + t(`🎉 重新抽獎，恭喜贏得 **${current.prize}**！`, `🎉 Reroll! Won **${current.prize}**!`),
-      });
+      await channel.send({ content: t(`🎉 重新抽獎！\n`, `🎉 Reroll!\n`) + announceText(picked, current) });
     }
   } catch (e) {
     logger.warn('giveaways', `重新抽獎宣布失敗：${e.message}`);
@@ -276,4 +336,7 @@ module.exports = {
   cancel,
   handleButton,
   onReady,
+  pickWinners,
+  announceText,
+  prizeList,
 };

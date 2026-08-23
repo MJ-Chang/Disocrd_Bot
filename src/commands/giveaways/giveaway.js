@@ -31,14 +31,18 @@ module.exports = {
       s
         .setName('start')
         .setDescription(t('開始一場抽獎', 'Start a giveaway'))
-        .addStringOption((o) => o.setName('prize').setDescription(t('獎品名稱', 'Prize name')).setRequired(true))
+        .addStringOption((o) => o.setName('prize').setDescription(t('獎品名稱（單一獎品用）', 'Prize name (single prize)')).setRequired(true))
+        .addStringOption((o) =>
+          o.setName('prizes').setDescription(t('多個獎品（逗號分隔，如 A, B, C）', 'Multiple prizes (comma-separated)'))
+        )
         .addStringOption((o) =>
           o
             .setName('duration')
             .setDescription(t('持續時間，例如 1h30m、2d、90（秒）', 'Duration, e.g. 1h30m, 2d, 90 (sec)'))
             .setRequired(true)
         )
-        .addIntegerOption((o) => o.setName('winners').setDescription(t('贏家人數（預設 1）', 'Winner count (default 1)')).setMinValue(1))
+        .addIntegerOption((o) => o.setName('winners').setDescription(t('贏家人數（預設 1；多獎品時自動等於獎品數）', 'Winner count (default 1; equals prize count for multiple prizes)')).setMinValue(1))
+        .addBooleanOption((o) => o.setName('weighted').setDescription(t('依等級加權（越高級越容易中獎）', 'Weight by level (higher level = better odds)')))
         .addChannelOption((o) => o.setName('channel').setDescription(t('抽獎頻道（預設為目前頻道）', 'Channel (default: current)')))
     )
     .addSubcommand((s) =>
@@ -90,13 +94,31 @@ module.exports = {
           return;
         }
         const winners = Math.max(1, interaction.options.getInteger('winners') || 1);
+        const weighted = interaction.options.getBoolean('weighted') || false;
+        // 多獎品：逗號分隔
+        const prizesRaw = interaction.options.getString('prizes');
+        const prizes = prizesRaw
+          ? prizesRaw.split(',').map((p) => p.trim()).filter(Boolean)
+          : null;
+        if (prizesRaw && (!prizes || prizes.length < 2)) {
+          await sendError(interaction, t('多獎品請至少用逗號分隔 2 個獎品，例如 `A, B, C`。', 'Please provide at least 2 prizes separated by commas, e.g. `A, B, C`.'));
+          return;
+        }
         const channel = interaction.options.getChannel('channel') || interaction.channel;
         if (!channel || !channel.isTextBased()) {
           await sendError(interaction, t('抽獎頻道必須是文字頻道。', 'The giveaway channel must be a text channel.'));
           return;
         }
-        const message = await giveaways.start(client, channel, durationMs, winners, prize, interaction.user);
-        if (message) await sendSuccess(interaction, t(`抽獎已開始：${channel}`, `Giveaway started: ${channel}`));
+        const message = await giveaways.start(client, channel, durationMs, winners, prize, interaction.user, { prizes, weighted });
+        if (message) {
+          await sendSuccess(
+            interaction,
+            t(
+              `抽獎已開始：${channel}${prizes ? `（${prizes.length} 個獎品）` : ''}${weighted ? '（等級加權）' : ''}`,
+              `Giveaway started: ${channel}${prizes ? ` (${prizes.length} prizes)` : ''}${weighted ? ' (level-weighted)' : ''}`
+            )
+          );
+        }
         return;
       }
 
